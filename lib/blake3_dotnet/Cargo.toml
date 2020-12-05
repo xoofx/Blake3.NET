@@ -1,0 +1,13 @@
+[package]
+name = "blake3_dotnet"
+version = "0.1.0"
+authors = ["Alexandre Mutel <alexandre_mutel@live.com>"]
+edition = "2018"
+
+[dependencies]
+blake3 = "0.3.7"
+libc = "0.2.80"
+
+[lib]
+name = "blake3_dotnet"
+crate-type = ["cdylib"]

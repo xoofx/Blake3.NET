@@ -1,0 +1,41 @@
+name: native
+
+on:
+  push:
+    paths-ignore:
+    - 'lib/native'
+    - 'src/**'
+    - '*.md'
+    - '*.txt'
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+    - name: Build Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+          cd lib/blake3_dotnet
+          ./build-linux-x64.sh
+          ./build-linux-arm64.sh
+          ./build-linux-arm.sh
+    - name: Build macOS
+      if: matrix.os == 'macOS-latest'
+      run: |
+          cd lib/blake3_dotnet
+          ./build-osx-x64.sh
+          ./build-osx-arm64.sh
+    - name: Build Windows
+      if: matrix.os == 'windows-latest'
+      run: |
+          cd lib/blake3_dotnet
+          ./build-win-x64.ps1
+          ./build-win-x86.ps1
+          ./build-win-arm.ps1
+          ./build-win-arm64.ps1
