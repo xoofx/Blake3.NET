@@ -11,6 +11,11 @@ libc = "0.2.80"
 [profile.release]
 lto = true
 
+[features]
+default = ["rayon"]
+neon = ["blake3/neon"]
+rayon = ["blake3/rayon"]
+
 [lib]
 name = "blake3_dotnet"
 crate-type = ["cdylib"]
