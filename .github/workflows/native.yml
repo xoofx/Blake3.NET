@@ -22,20 +22,27 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
           cd lib/blake3_dotnet
+          chmod 755 *.sh
+          echo "building linux-x64"
           ./build-linux-x64.sh
+          echo "building linux-arm64"
+          sudo apt-get install gcc-aarch64-linux-gnu      
           ./build-linux-arm64.sh
+          echo "building linux-arm"
+          sudo apt-get install gcc-arm-linux-gnueabihf      
           ./build-linux-arm.sh
     - name: Build macOS
       if: matrix.os == 'macOS-latest'
       run: |
           cd lib/blake3_dotnet
+          chmod 755 *.sh
           ./build-osx-x64.sh
-          ./build-osx-arm64.sh
+#          ./build-osx-arm64.sh
     - name: Build Windows
       if: matrix.os == 'windows-latest'
       run: |
           cd lib/blake3_dotnet
           ./build-win-x64.ps1
           ./build-win-x86.ps1
-          ./build-win-arm.ps1
           ./build-win-arm64.ps1
+#          ./build-win-arm.ps1

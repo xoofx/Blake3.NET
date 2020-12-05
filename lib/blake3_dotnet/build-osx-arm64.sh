@@ -1,6 +1,6 @@
 #!/bin/sh
 TARGET="aarch64-apple-darwin"
-$BUILD="osx-arm64"
+BUILD="osx-arm64"
 rustup target add $TARGET
 cargo build --release --target $TARGET
 mkdir -p build/$BUILD

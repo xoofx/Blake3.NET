@@ -1,6 +1,6 @@
 #!/bin/sh
-TARGET="arm-unknown-linux-gnueabi"
-$BUILD="linux-arm"
+TARGET="arm-unknown-linux-gnueabihf"
+BUILD="linux-arm"
 rustup target add $TARGET
 cargo build --release --target $TARGET
 mkdir -p build/$BUILD
