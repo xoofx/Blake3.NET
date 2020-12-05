@@ -8,6 +8,9 @@ edition = "2018"
 blake3 = "0.3.7"
 libc = "0.2.80"
 
+[profile.release]
+lto = true
+
 [lib]
 name = "blake3_dotnet"
 crate-type = ["cdylib"]
