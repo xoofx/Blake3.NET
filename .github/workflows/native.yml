@@ -20,8 +20,8 @@ jobs:
       uses: actions/checkout@v1
     - name: Build Linux
       if: matrix.os == 'ubuntu-latest'
+      working-directory: lib/blake3_dotnet
       run: |
-          cd lib/blake3_dotnet
           chmod 755 *.sh
           echo "building linux-x64"
           ./build-linux-x64.sh
@@ -33,15 +33,15 @@ jobs:
           ./build-linux-arm.sh
     - name: Build macOS
       if: matrix.os == 'macOS-latest'
+      working-directory: lib/blake3_dotnet
       run: |
-          cd lib/blake3_dotnet
           chmod 755 *.sh
           ./build-osx-x64.sh
 #          ./build-osx-arm64.sh
     - name: Build Windows
       if: matrix.os == 'windows-latest'
+      working-directory: lib/blake3_dotnet
       run: |
-          cd lib/blake3_dotnet
           ./build-win-x64.ps1
           ./build-win-x86.ps1
           ./build-win-arm64.ps1
