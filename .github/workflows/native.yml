@@ -11,10 +11,10 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
+    runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout
       uses: actions/checkout@v1
@@ -46,3 +46,8 @@ jobs:
           ./build-win-x86.ps1
           ./build-win-arm64.ps1
 #          ./build-win-arm.ps1
+    - name: Artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: native-${{ matrix.os }}
+        path: lib/build/**/*
