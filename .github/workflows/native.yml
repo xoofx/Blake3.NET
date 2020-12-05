@@ -50,4 +50,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: native-${{ matrix.os }}
-        path: lib/build/**/*
+        path: lib/build/
