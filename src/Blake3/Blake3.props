@@ -3,7 +3,7 @@
     <Description>Blake3.NET is a managed wrapper around the Rust implementations of the BLAKE3 cryptographic hash function.</Description>
     <Copyright>Alexandre Mutel</Copyright>
     <NeutralLanguage>en-US</NeutralLanguage>
-    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionPrefix>0.2.0</VersionPrefix>
     <!--<VersionSuffix>alpha</VersionSuffix>
     <BuildNumber>9</BuildNumber>
     <VersionSuffix Condition="'$(VersionSuffix)' != '' AND '$(BuildNumber)' != ''">$(VersionSuffix).$(BuildNumber)</VersionSuffix>-->
