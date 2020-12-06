@@ -1,54 +1,52 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using Blake2Fast;
 
 namespace Blake3.Benchmarks
 {
+    [RPlotExporter]
     public class Program
     {
+        private byte[] _data;
+
+        [Params(4, 100, 1000, 10000, 100000, 1000000)]
+        public int N;
+
+        [GlobalSetup]
+        public void Setup()
+        {
+            _data = new byte[N];
+            new Random(42).NextBytes(_data);
+        }
+
         [Benchmark(Description = "Blake3")]
-        [ArgumentsSource(nameof(Data))]
-        public void RunBlake3(byte[] input)
+        public void RunBlake3()
         {
             // Benchmark the WithJoin version
-            if (input.Length >= 1000000)
+            if (_data.Length >= 1000000)
             {
                 using var hasher = Hasher.New();
-                hasher.UpdateWithJoin<byte>(input);
+                hasher.UpdateWithJoin<byte>(_data);
                 hasher.Finalize();
             }
             else
             {
-                Hasher.Hash(input.AsSpan());
+                Hasher.Hash(_data.AsSpan());
             }
         }
 
         [Benchmark(Description = "Blake2Fast")]
-        [ArgumentsSource(nameof(Data))]
-        public void RunBlake2Fast(byte[] input)
+        public void RunBlake2Fast()
         {
-            Blake2b.ComputeHash(input);
+            Blake2b.ComputeHash(_data);
         }
 
         [Benchmark(Description = "SHA256")]
-        [ArgumentsSource(nameof(Data))]
-        public unsafe void RunSHA256(byte[] input)
+        public unsafe void RunSHA256()
         {
             Span<byte> data = stackalloc byte[32];
-            System.Security.Cryptography.SHA256.HashData(input.AsSpan(), data);
-        }
-
-        public IEnumerable<byte[]> Data()
-        {
-            yield return new byte[] { 1, 2, 3 };
-            yield return Enumerable.Range(0, 100).Select(i => (byte)i).ToArray();
-            yield return Enumerable.Range(0, 1000).Select(i => (byte)i).ToArray();
-            yield return Enumerable.Range(0, 10000).Select(i => (byte)i).ToArray();
-            yield return Enumerable.Range(0, 100000).Select(i => (byte)i).ToArray();
-            yield return Enumerable.Range(0, 1000000).Select(i => (byte)i).ToArray();
+            System.Security.Cryptography.SHA256.HashData(_data.AsSpan(), data);
         }
 
         static void Main(string[] args)
