@@ -51,7 +51,7 @@ The benchmarks are running with [BenchmarkDotNet](https://github.com/dotnet/Benc
 - [Blake2Fast](https://github.com/saucecontrol/Blake2Fast) `2.0.0`
 - `System.Security.Cryptography.SHA256` of .NET 5.0
 
-For the 1,000,000 bytes tests, Blake3 is using the multi-threading version provided by the hashing library.
+For the 1,000,000 bytes test, Blake3 is using the multi-threading version provided by Blake3 (`Hasher.UpdateWithJoin` method).
 
 > **Results**
 >
