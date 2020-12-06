@@ -231,8 +231,15 @@ namespace Blake3
             ref var pData = ref MemoryMarshal.GetReference(hash);
             fixed (void* ptr = &pData)
             {
-
-                blake3_finalize_xof(_hasher, ptr, (void*) (IntPtr) hash.Length);
+                var size = hash.Length;
+                if (size == Blake3.Hash.Size)
+                {
+                    blake3_finalize(_hasher, ptr);
+                }
+                else
+                {
+                    blake3_finalize_xof(_hasher, ptr, (void*)(IntPtr)hash.Length);
+                }
             }
         }
 
