@@ -7,7 +7,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Blake3", "Blake3\Blake3.csp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Blake3.Tests", "Blake3.Tests\Blake3.Tests.csproj", "{07CA4AD6-5EA4-4667-8FF8-3FB22DF68B6D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Blake3.Benchmarks", "Blake3.Benchmarks\Blake3.Benchmarks.csproj", "{16ABF9A1-F115-4B0B-92BA-5E7D804F2F38}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Blake3.Benchmarks", "Blake3.Benchmarks\Blake3.Benchmarks.csproj", "{16ABF9A1-F115-4B0B-92BA-5E7D804F2F38}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D7FB428D-F9F9-46A0-807E-60C75C176F98}"
+	ProjectSection(SolutionItems) = preProject
+		..\changelog.md = ..\changelog.md
+		..\license.txt = ..\license.txt
+		..\.github\workflows\managed.yml = ..\.github\workflows\managed.yml
+		..\readme.md = ..\readme.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

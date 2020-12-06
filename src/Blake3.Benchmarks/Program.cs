@@ -13,7 +13,17 @@ namespace Blake3.Benchmarks
         [ArgumentsSource(nameof(Data))]
         public void RunBlake3(byte[] input)
         {
-            Hasher.HashData(input.AsSpan());
+            // Benchmark the WithJoin version
+            if (input.Length >= 1000000)
+            {
+                using var hasher = Hasher.New();
+                hasher.UpdateWithJoin<byte>(input);
+                hasher.Finalize();
+            }
+            else
+            {
+                Hasher.Hash(input.AsSpan());
+            }
         }
 
         [Benchmark(Description = "Blake2Fast")]
@@ -38,6 +48,7 @@ namespace Blake3.Benchmarks
             yield return Enumerable.Range(0, 1000).Select(i => (byte)i).ToArray();
             yield return Enumerable.Range(0, 10000).Select(i => (byte)i).ToArray();
             yield return Enumerable.Range(0, 100000).Select(i => (byte)i).ToArray();
+            yield return Enumerable.Range(0, 1000000).Select(i => (byte)i).ToArray();
         }
 
         static void Main(string[] args)
