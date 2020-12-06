@@ -61,7 +61,7 @@ pub extern fn blake3_update_with_join(
 #[no_mangle]
 pub extern fn blake3_finalize(
   hasher: *mut blake3::Hasher,
-  ptr_out: *const u8)
+  ptr_out: *mut u8)
 {
   let hasher = unsafe { &mut *hasher };
   unsafe { *(ptr_out as *mut blake3::Hash) = hasher.finalize(); }
