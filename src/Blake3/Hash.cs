@@ -1,4 +1,8 @@
-﻿using System;
+﻿// Copyright (c) Alexandre Mutel. All rights reserved.
+// Licensed under the BSD-Clause 2 license.
+// See license.txt file in the project root for full license information.
+
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -9,10 +13,8 @@ namespace Blake3
     /// An output of the default size, 32 bytes, which provides constant-time equality checking.
     /// </summary>
     /// <remarks>
-    /// This hash is returned by <see cref="Hasher.Hash"/>.
+    /// This hash is returned by <see cref="Hasher.Hash(System.ReadOnlySpan{byte})"/>.
     /// This hash struct provides structural equality.
-    /// 
-    ///
     /// </remarks>
     public struct Hash : IEquatable<Hash>
     {
