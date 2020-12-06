@@ -3,7 +3,8 @@ name: native
 on:
   push:
     paths-ignore:
-    - 'lib/native'
+    - 'img/**'
+    - 'doc/**'
     - 'src/**'
     - '*.md'
     - '*.txt'
