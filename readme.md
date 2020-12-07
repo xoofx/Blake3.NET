@@ -8,13 +8,13 @@ Blake3.NET is a fast managed wrapper around the SIMD Rust implementations of the
 
 ## Features
 
-- Compatible with .NET5.0+
+- Compatible with .NET5.0+.
 - Fast interop with `Span` friendly API.
-- API similar to the [Blake3 Rust API](https://docs.rs/blake3/0.3.7/blake3/)
+- API similar to the [Blake3 Rust API](https://docs.rs/blake3/0.3.7/blake3/).
 - CPU SIMD Hardware accelerated with dynamic CPU feature detection.
   - Multiple [platforms](#platforms) supported.
 - Incremental update API via `Hasher`.
-- Support for multi-threading hashing via `Hasher.UpdateWithJoin`
+- Support for multi-threading hashing via `Hasher.UpdateWithJoin`.
 
 ## Usage
 
