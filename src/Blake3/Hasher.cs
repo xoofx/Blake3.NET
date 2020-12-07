@@ -21,9 +21,12 @@ namespace Blake3
         private const string DllName = "blake3_dotnet";
         private void* _hasher;
         /// <summary>
-        ///  Arbitrary limit to switch to a preemptive version.
+        /// We are taking a limit of 1024 bytes to switch to a preemptive version,
+        /// as it takes around 1μs on a x64 very recent CPU to complete, which is
+        /// better aligned with the documentation of <see cref="SuppressGCTransitionAttribute"/>:
+        /// `Native function always executes for a trivial amount of time (less than 1 microsecond).`
         /// </summary>
-        private const int LimitPreemptive = 64 * 1024;
+        private const int LimitPreemptive = 1024;
 
         private Hasher(void* hasher)
         {
