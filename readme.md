@@ -1,10 +1,20 @@
-# **Blake3**<span style="color: #A80016; font-weight: bold">.NET</span> [![Build Status](https://github.com/xoofx/Blake3.NET/workflows/managed/badge.svg?branch=master)](https://github.com/xoofx/Blake3.NET/actions) [![Build Status](https://github.com/xoofx/Blake3.NET/workflows/native/badge.svg?branch=master)](https://github.com/xoofx/Blake3.NET/actions) [![NuGet](https://img.shields.io/nuget/v/Blake3.svg)](https://www.nuget.org/packages/Blake3/)
+# Blake3<font color="A80016">.NET</span> [![Build Status](https://github.com/xoofx/Blake3.NET/workflows/managed/badge.svg?branch=master)](https://github.com/xoofx/Blake3.NET/actions) [![Build Status](https://github.com/xoofx/Blake3.NET/workflows/native/badge.svg?branch=master)](https://github.com/xoofx/Blake3.NET/actions) [![NuGet](https://img.shields.io/nuget/v/Blake3.svg)](https://www.nuget.org/packages/Blake3/)
 
 <img align="right" width="160px" height="160px" src="img/logo.png">
 
 Blake3.NET is a fast managed wrapper around the SIMD Rust implementations of the [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) cryptographic hash function.
 
 > The current _native_ version of BLAKE3 used by Blake3.NET is `0.3.7`
+
+## Features
+
+- Compatible with .NET5.0+
+- Fast interop with `Span` friendly API.
+- API similar to the [Blake3 Rust API](https://docs.rs/blake3/0.3.7/blake3/)
+- CPU SIMD Hardware accelerated with dynamic CPU feature detection.
+  - Multiple [platforms](#platforms) supported.
+- Incremental update API via `Hasher`.
+- Support for multi-threading hashing via `Hasher.UpdateWithJoin`
 
 ## Usage
 
@@ -57,11 +67,58 @@ For the 1,000,000 bytes test, Blake3 is using the multi-threading version provid
 
 > **Results**
 >
-> - In general, Blake3 is faster. 
+> - In general, Blake3 is much faster than SHA256 which is depending on whether your CPU supports Intel SHA Extensions.
+>   - Blake3 can be from **2x to 10x times faster** than SHA256
 > - The multi-threading version can give a significant boost if the data to hash is big enough
-> - There is a worst case around 1,000 bytes (that will probably require some investigation)
+> - Blake3 is usually working best on large input.
+
+## Results
+
+The CPU before Intel Ice Lake or AMD Zen don't have the [Intel SHA CPU extensions](https://en.wikipedia.org/wiki/Intel_SHA_extensions).
+
+In that case, **Blake3 is around 5x to 10x times faster** than the built-in SHA256.
+
+The following benchmark was ran on an Intel Core i7-4980HQ CPU 2.80GHz (Haswell):
 
 ![Benchmarks](img/benchmarks.png)
+
+``` ini
+
+BenchmarkDotNet=v0.12.1, OS=Windows 10.0.18363.1139 (1909/November2018Update/19H2)
+Intel Core i7-4980HQ CPU 2.80GHz (Haswell), 1 CPU, 8 logical and 4 physical cores
+.NET Core SDK=5.0.100
+  [Host]     : .NET Core 5.0 (CoreCLR 5.0.20.51904, CoreFX 5.0.20.51904), X64 RyuJIT
+  DefaultJob : .NET Core 5.0.0 (CoreCLR 5.0.20.51904, CoreFX 5.0.20.51904), X64 RyuJIT
+
+```
+|     Method |       N |            Mean |         Error |        StdDev |          Median |
+|----------- |-------- |----------------:|--------------:|--------------:|----------------:|
+|     **Blake3** |       **4** |        **85.06 ns** |      **1.704 ns** |      **2.154 ns** |        **83.55 ns** |
+| Blake2Fast |       4 |       138.30 ns |      0.755 ns |      0.670 ns |       138.36 ns |
+|     SHA256 |       4 |       531.82 ns |      0.842 ns |      0.788 ns |       531.85 ns |
+|     **Blake3** |     **100** |       **145.12 ns** |      **2.899 ns** |      **4.064 ns** |       **142.56 ns** |
+| Blake2Fast |     100 |       153.41 ns |      3.057 ns |      4.760 ns |       150.66 ns |
+|     SHA256 |     100 |       803.32 ns |     11.420 ns |      8.916 ns |       797.37 ns |
+|     **Blake3** |    **1000** |       **999.01 ns** |     **19.658 ns** |     **26.908 ns** |       **984.60 ns** |
+| Blake2Fast |    1000 |       789.41 ns |     15.814 ns |     18.825 ns |       784.82 ns |
+|     SHA256 |    1000 |     4,489.81 ns |     84.032 ns |     78.603 ns |     4,525.27 ns |
+|     **Blake3** |   **10000** |     **4,099.92 ns** |     **49.985 ns** |     **46.756 ns** |     **4,121.94 ns** |
+| Blake2Fast |   10000 |     7,593.55 ns |    127.193 ns |    112.753 ns |     7,609.07 ns |
+|     SHA256 |   10000 |    40,799.82 ns |    769.102 ns |  1,386.850 ns |    41,460.32 ns |
+|     **Blake3** |  **100000** |    **28,491.58 ns** |    **394.692 ns** |    **369.195 ns** |    **28,498.05 ns** |
+| Blake2Fast |  100000 |    78,732.84 ns |    648.124 ns |    606.255 ns |    78,887.56 ns |
+|     SHA256 |  100000 |   408,581.45 ns |  2,359.416 ns |  2,207.000 ns |   409,059.91 ns |
+|     **Blake3** | **1000000** |   **138,481.22 ns** |  **1,300.797 ns** |  **1,216.767 ns** |   **138,460.16 ns** |
+| Blake2Fast | 1000000 |   724,092.30 ns |  6,995.547 ns |  6,543.639 ns |   720,115.33 ns |
+|     SHA256 | 1000000 | 3,699,812.03 ns | 37,739.460 ns | 35,301.514 ns | 3,678,276.17 ns |
+
+## Results with SHA CPU extensions
+
+If your CPU has [Intel SHA CPU extensions](https://en.wikipedia.org/wiki/Intel_SHA_extensions), then **Blake3 is on average ~2x times faster** than SHA256.
+
+The following benchmarks was ran on a AMD Ryzen 9 3900X:
+
+![Benchmarks](img/benchmarks-sha-accelerated.png)
 
 ``` ini
 
