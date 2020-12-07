@@ -44,16 +44,11 @@ var hash = blake3Stream.ComputeHash();
 ```
 ## Platforms
 
-Blake3.NET is supporting **.NET 5.0+** on the following platforms:
+Blake3.NET is supported on the following platforms:
 
-- Windows x64
-- Windows x86
-- Windows ARM64
-- Windows ARM
-- Linux x64
-- Linux ARM64
-- Linux ARM
-- OSX x64
+- `win-x64`, `win-x86`, `win-arm64`, `win-arm`
+- `linux-x64`, `linux-arm64`, `linux-arm`
+- `osx-x64`
 
 ## Benchmarks
 
