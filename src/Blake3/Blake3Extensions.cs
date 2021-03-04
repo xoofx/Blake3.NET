@@ -19,7 +19,15 @@ namespace Blake3
         /// <returns>The hash of the span</returns>
         public static Span<byte> AsSpan(ref this Hash hash)
         {
+#if NETSTANDARD2_0
+            unsafe
+            {
+                fixed (void* pHash = &hash)
+                    return new Span<byte>(pHash, sizeof(Hash));
+            }
+#else
             return MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref hash, 1));
+#endif
         }
     }
 }

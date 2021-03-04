@@ -6,6 +6,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Blake3
 {
@@ -106,6 +107,7 @@ namespace Blake3
 
         public override string ToString()
         {
+#if NET5_0
             return string.Create(Size * 2, this, (span, hash) =>
             {
                 var data = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref hash, 1));
@@ -116,6 +118,22 @@ namespace Blake3
                     span[i * 2 + 1] = Hex[b & 0xF];
                 }
             });
+#else
+            unsafe
+            {
+                var builder = new StringBuilder(Size * 2);
+                fixed (byte* pBytes = &_byte1)
+                {
+                    for (int i = 0; i < Size; i++)
+                    {
+                        var b = pBytes[i];
+                        builder.Append(Hex[(b >> 4) & 0xF]);
+                        builder.Append(Hex[b & 0xF]);
+                    }
+                }
+                return builder.ToString();
+            }
+#endif
         }
 
         public static bool operator ==(Hash left, Hash right)

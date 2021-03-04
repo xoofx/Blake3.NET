@@ -42,6 +42,7 @@ namespace Blake3
             }
         }
 
+#if NET5_0
         public override async ValueTask DisposeAsync()
         {
             _hasher.Dispose();
@@ -50,6 +51,7 @@ namespace Blake3
                 await _stream.DisposeAsync();
             }
         }
+#endif
 
         public override void Flush()
         {
@@ -97,6 +99,8 @@ namespace Blake3
             return length;
         }
 
+#if NET5_0
+
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = new CancellationToken())
         {
             var length = await _stream.ReadAsync(buffer, cancellationToken);
@@ -116,13 +120,14 @@ namespace Blake3
             }
             return length;
         }
+#endif
 
-        public override int ReadByte()
+        public override unsafe int ReadByte()
         {
             var value = _stream.ReadByte();
             if (value < 0) return value;
             var bValue = (byte) value;
-            var span = MemoryMarshal.CreateSpan(ref bValue, 1);
+            var span = new ReadOnlySpan<byte>(&bValue, 1);
             _hasher.Update(span);
             return value;
         }
@@ -146,16 +151,17 @@ namespace Blake3
             }
         }
 
+#if NET5_0
         public override void Write(ReadOnlySpan<byte> buffer)
         {
             _stream.Write(buffer);
             _hasher.Update(buffer);
         }
-
-        public override void WriteByte(byte value)
+#endif
+        public override unsafe void WriteByte(byte value)
         {
             _stream.WriteByte(value);
-            var span = MemoryMarshal.CreateSpan(ref value, 1);
+            var span = new ReadOnlySpan<byte>(&value, 1);
             _hasher.Update(span);
         }
 

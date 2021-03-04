@@ -3,7 +3,7 @@
   <Import Project="Blake3.props" />
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFrameworks>net5.0;netstandard2.0</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -11,6 +11,7 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <LangVersion>9.0</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,8 +21,12 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Memory" Version="4.5.0" />
+  </ItemGroup>
+
   <ItemGroup>
-    <AssemblyMetadataCommand Remove="GitDescription"/>
+    <AssemblyMetadataCommand Remove="GitDescription" />
     <PackageReference Include="MSBuildGitHash" Version="2.0.2">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>

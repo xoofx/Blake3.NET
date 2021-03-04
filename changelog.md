@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Add support for `netstandard2.0`
+
 ## 0.2.1
 
 - Set preemptive limit to 1024 bytes instead of 64Kb
