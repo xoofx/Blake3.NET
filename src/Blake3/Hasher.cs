@@ -6,6 +6,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Blake3
 {
@@ -257,7 +258,48 @@ namespace Blake3
         {
             return new Hasher(blake3_new());
         }
-        
+
+        /// <summary>
+        /// Construct a new Hasher for the keyed hash function.
+        /// </summary>
+        /// <param name="key">A 32 bytes key.</param>
+        /// <returns>A new instance of the hasher</returns>
+        /// <remarks>
+        /// The struct returned needs to be disposed explicitly.
+        /// </remarks>
+        public static Hasher NewKeyed(ReadOnlySpan<byte> key)
+        {
+            if (key.Length != 32) throw new ArgumentOutOfRangeException(nameof(key), "Expecting the key to be 32 bytes");
+
+            fixed(void* ptr = key)
+                return new Hasher(blake3_new_keyed(ptr));
+        }
+
+        /// <summary>
+        /// Construct a new Hasher for the key derivation function.
+        /// </summary>
+        /// <returns>A new instance of the hasher</returns>
+        /// <remarks>
+        /// The struct returned needs to be disposed explicitly.
+        /// </remarks>
+        public static Hasher NewDeriveKey(string text)
+        {
+            return NewDeriveKey(Encoding.UTF8.GetBytes(text));
+        }
+
+        /// <summary>
+        /// Construct a new Hasher for the key derivation function.
+        /// </summary>
+        /// <returns>A new instance of the hasher</returns>
+        /// <remarks>
+        /// The struct returned needs to be disposed explicitly.
+        /// </remarks>
+        public static Hasher NewDeriveKey(ReadOnlySpan<byte> str)
+        {
+            fixed(void* ptr = str)
+                return new Hasher(blake3_new_derive_key(ptr, (void*)str.Length));
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void FastUpdate(void* hasher, void* ptr, long size)
         {
@@ -298,6 +340,14 @@ namespace Blake3
         [SuppressGCTransition]
         private static extern void* blake3_new();
 
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        [SuppressGCTransition]
+        private static extern void* blake3_new_keyed(void* ptr32Bytes);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        [SuppressGCTransition]
+        private static extern void* blake3_new_derive_key(void* ptr, void* size);
+        
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         [SuppressGCTransition]
         private static extern void blake3_hash(void* ptr, void* size, void* ptrOut);
