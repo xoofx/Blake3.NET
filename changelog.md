@@ -3,6 +3,7 @@
 ## 0.3.0
 
 - Add support for `netstandard2.0`
+- Add support for `Hasher.NewKeyed` and `Hasher.NewDeriveKey`
 
 ## 0.2.1
 
