@@ -18,7 +18,7 @@ Blake3.NET is a fast managed wrapper around the SIMD Rust implementations of the
 
 ## Usage
 
-Hash directly a buffer:
+Hash a buffer directly:
 
 ```c#
 var hash = Blake3.Hasher.Hash(Encoding.UTF8.GetBytes("BLAKE3"));
@@ -42,6 +42,26 @@ using var blake3Stream = new Blake3Stream(new MemoryStream());
 blake3Stream.Write(Encoding.UTF8.GetBytes("BLAKE3"));
 var hash = blake3Stream.ComputeHash();
 ```
+
+Or produce a message authentication code using a 256-bit key:
+
+```c#
+using var blake3 = Hasher.NewKeyed(macKey);
+blake3.UpdateWithJoin(message);
+var tag = blake3.Finalize();
+byte[] authenticationTag = tag.AsSpan().ToArray();
+````
+
+Or derive a subkey from a master key:
+
+```c#
+const string context = "[application] [commit timestamp] [purpose]";
+using var blake3 = Hasher.NewDeriveKey(Encoding.UTF8.GetBytes(context));
+blake3.Update(inputKeyingMaterial);
+var derivedKey = blake3.Finalize();
+byte[] subkey = derivedKey.AsSpan().ToArray();
+```
+
 ## Platforms
 
 Blake3.NET is supported on the following platforms:
