@@ -38,7 +38,7 @@ namespace Blake3
         /// The default hash function.
         /// </summary>
         /// <param name="input">The input data to hash.</param>
-        /// <returns>The calculated 512-bit/32-byte hash.</returns>
+        /// <returns>The calculated 256-bit/32-byte hash.</returns>
         /// <remarks>
         /// For an incremental version that accepts multiple writes <see cref="Update{T}"/>
         /// This function is always single-threaded. For multi-threading support <see cref="UpdateWithJoin"/> 
@@ -208,7 +208,7 @@ namespace Blake3
         /// <summary>
         /// Finalize the hash state and return the Hash of the input.
         /// </summary>
-        /// <returns>The calculated 512-bit/32-byte hash.</returns>
+        /// <returns>The calculated 256-bit/32-byte hash.</returns>
         /// <remarks>
         /// This method is idempotent. Calling it twice will give the same result. You can also add more input and finalize again.
         /// </remarks>
@@ -262,7 +262,7 @@ namespace Blake3
         /// <summary>
         /// Construct a new Hasher for the keyed hash function.
         /// </summary>
-        /// <param name="key">A 32 bytes key.</param>
+        /// <param name="key">A 32 byte key.</param>
         /// <returns>A new instance of the hasher</returns>
         /// <remarks>
         /// The struct returned needs to be disposed explicitly.
