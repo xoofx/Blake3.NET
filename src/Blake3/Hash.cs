@@ -67,7 +67,7 @@ namespace Blake3
         public void CopyFromBytes(ReadOnlySpan<byte> data)
         {
             if (data.Length != 32) ThrowArgumentOutOfRange(data.Length);
-            data.CopyTo(this.AsSpan());
+            data.CopyTo(this.AsSpanUnsafe());
         }
 
         /// <summary>
@@ -86,7 +86,7 @@ namespace Blake3
 
         public bool Equals(Hash other)
         {
-            return this.AsSpan().SequenceCompareTo(other.AsSpan()) == 0;
+            return this.AsSpanUnsafe().SequenceCompareTo(other.AsSpanUnsafe()) == 0;
         }
 
         public override bool Equals(object obj)
@@ -96,7 +96,7 @@ namespace Blake3
 
         public override int GetHashCode()
         {
-            var values = MemoryMarshal.Cast<byte, int>(this.AsSpan());
+            var values = MemoryMarshal.Cast<byte, int>(this.AsSpanUnsafe());
             int hashcode = 0;
             for (int i = 0; i < values.Length; i++)
             {

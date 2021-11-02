@@ -13,11 +13,15 @@ namespace Blake3
     public static class Blake3Extensions
     {
         /// <summary>
-        /// Creates a span from a hash.
+        /// Creates a span from a hash. The span returned has to follow the same lifetime than the hash referenced.
         /// </summary>
         /// <param name="hash">The hash to create a span from.</param>
         /// <returns>The hash of the span</returns>
-        public static Span<byte> AsSpan(ref this Hash hash)
+        /// <remarks>This method is unsafe because you could return a Span from a local variable Hash that could be no longer valid on the stack.
+        /// Use this Span with the same variable scope of the original Hash.
+        /// It is safe to use this method if the referenced Hash is a field of a managed type.
+        /// </remarks>
+        public static Span<byte> AsSpanUnsafe(ref this Hash hash)
         {
 #if NETSTANDARD2_0
             unsafe
