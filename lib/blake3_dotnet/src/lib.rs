@@ -62,14 +62,14 @@ pub extern fn blake3_update(
 // Updates Blake3 hash with data
 #[cfg(feature = "rayon")]
 #[no_mangle]
-pub extern fn blake3_update_with_join(
+pub extern fn blake3_update_rayon(
   hasher: *mut blake3::Hasher,
   ptr: *const u8,
   size: libc::size_t)
 {
   let hasher = unsafe { &mut *hasher };
   let slice = unsafe { std::slice::from_raw_parts(ptr as *const u8, size as usize) };
-  hasher.update_with_join::<blake3::join::RayonJoin>(slice);  
+  hasher.update_rayon(slice);  
 }
 
 // Finalize to a 32 byte hash

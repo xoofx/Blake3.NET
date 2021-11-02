@@ -179,7 +179,7 @@ namespace Blake3
             if (_hasher == null) ThrowNullReferenceException();
             fixed (void* ptr = data)
             {
-                blake3_update_with_join(_hasher, ptr, (void*)data.Length);
+                blake3_update_rayon(_hasher, ptr, (void*)data.Length);
             }
         }
 
@@ -201,7 +201,7 @@ namespace Blake3
             fixed (void* ptr = data)
             {
                 void* size = (void*) (IntPtr) (data.Length * sizeof(T));
-                blake3_update_with_join(_hasher, ptr, size);
+                blake3_update_rayon(_hasher, ptr, size);
             }
         }
 
@@ -371,7 +371,7 @@ namespace Blake3
         private static extern void blake3_update_preemptive(void* hasher, void* ptr, void* size);
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        private static extern void blake3_update_with_join(void* hasher, void* ptr, void* size);
+        private static extern void blake3_update_rayon(void* hasher, void* ptr, void* size);
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         [SuppressGCTransition]
