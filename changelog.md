@@ -1,9 +1,9 @@
 # Changelog
 
 ## 0.4.0
-- Breaking change: Rename `Hash.AsSpan` to `Hash.AsSpanUnsafe`
+- Breaking change: The method `Hash.AsSpan` is renamed to `Hash.AsSpanUnsafe`
 - Update to BLAKE3 1.1.0
-
+- Add osx-arm64 binaries
 
 ## 0.3.0
 
