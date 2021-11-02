@@ -49,7 +49,7 @@ Or produce a message authentication code using a 256-bit key:
 using var blake3 = Hasher.NewKeyed(macKey);
 blake3.UpdateWithJoin(message);
 var tag = blake3.Finalize();
-byte[] authenticationTag = tag.AsSpan().ToArray();
+byte[] authenticationTag = tag.AsSpanUnsafe().ToArray();
 ````
 
 Or derive a subkey from a master key:
@@ -59,7 +59,7 @@ const string context = "[application] [commit timestamp] [purpose]";
 using var blake3 = Hasher.NewDeriveKey(Encoding.UTF8.GetBytes(context));
 blake3.Update(inputKeyingMaterial);
 var derivedKey = blake3.Finalize();
-byte[] subkey = derivedKey.AsSpan().ToArray();
+byte[] subkey = derivedKey.AsSpanUnsafe().ToArray();
 ```
 
 ## Platforms
