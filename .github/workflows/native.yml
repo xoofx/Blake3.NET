@@ -40,7 +40,7 @@ jobs:
       run: |
           chmod 755 *.sh
           ./build-osx-x64.sh
-#          ./build-osx-arm64.sh
+          ./build-osx-arm64.sh
     - name: Build Windows
       if: matrix.os == 'windows-latest'
       run: |
