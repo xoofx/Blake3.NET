@@ -12,6 +12,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D7FB428D-F9F9-46A0-807E-60C75C176F98}"
 	ProjectSection(SolutionItems) = preProject
 		..\changelog.md = ..\changelog.md
+		global.json = global.json
 		..\license.txt = ..\license.txt
 		..\.github\workflows\managed.yml = ..\.github\workflows\managed.yml
 		..\.github\workflows\native.yml = ..\.github\workflows\native.yml
