@@ -93,3 +93,18 @@ pub extern fn blake3_finalize_xof(
   let slice = unsafe { std::slice::from_raw_parts_mut(ptr_out as *mut u8, size as usize) };
   hasher.finalize_xof().fill(slice);
 }
+
+// Finalize the hash, seek to the offset in the hash stream and put the result into output.
+#[no_mangle]
+pub extern fn blake3_finalize_seek_xof(
+  hasher: *mut blake3::Hasher,
+  offset: u64,
+  ptr_out: *mut u8,
+  size: libc::size_t)
+{
+  let hasher = unsafe { &mut *hasher };
+  let slice = unsafe { std::slice::from_raw_parts_mut(ptr_out as *mut u8, size as usize) };
+  let mut reader = hasher.finalize_xof();
+  reader.set_position(offset);
+  reader.fill(slice);
+}

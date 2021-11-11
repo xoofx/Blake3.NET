@@ -248,6 +248,37 @@ namespace Blake3
         }
 
         /// <summary>
+        /// Finalize the hash state to the output span, which can supply any number of output bytes.
+        /// </summary>
+        /// <param name="offset">The offset to seek to in the output stream, relative to the start.</param>
+        /// <param name="hash">The output hash, which can supply any number of output bytes.</param>
+        /// <remarks>
+        /// This method is idempotent. Calling it twice will give the same result. You can also add more input and finalize again.
+        /// </remarks>
+        public void Finalize(ulong offset, Span<byte> hash)
+        {
+            if (_hasher == null) ThrowNullReferenceException();
+            ref var pData = ref MemoryMarshal.GetReference(hash);
+            fixed (void* ptr = &pData)
+            {
+                blake3_finalize_seek_xof(_hasher, offset, ptr, (void*)(IntPtr)hash.Length);
+            }
+        }
+
+        /// <summary>
+        /// Finalize the hash state to the output span, which can supply any number of output bytes.
+        /// </summary>
+        /// <param name="offset">The offset to seek to in the output stream, relative to the start.</param>
+        /// <param name="hash">The output hash, which can supply any number of output bytes.</param>
+        /// <remarks>
+        /// This method is idempotent. Calling it twice will give the same result. You can also add more input and finalize again.
+        /// </remarks>
+        public void Finalize(long offset, Span<byte> hash)
+        {
+            Finalize((ulong)offset, hash);
+        }
+
+        /// <summary>
         /// Construct a new Hasher for the regular hash function.
         /// </summary>
         /// <returns>A new instance of the hasher</returns>
@@ -380,5 +411,9 @@ namespace Blake3
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         [SuppressGCTransition]
         private static extern void blake3_finalize_xof(void* hasher, void* ptr, void* size);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        [SuppressGCTransition]
+        private static extern void blake3_finalize_seek_xof(void* hasher, ulong offset, void* ptr, void* size);
     }
 }
