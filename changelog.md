@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+- Update to BLAKE3 1.2.0
+- Add `Hasher.Finalize(long offset, Span<byte> hash)`
+
 ## 0.4.0
 - Breaking change: The method `Hash.AsSpan` is renamed to `Hash.AsSpanUnsafe`
 - Update to BLAKE3 1.1.0
