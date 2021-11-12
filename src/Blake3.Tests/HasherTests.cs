@@ -74,5 +74,41 @@ namespace Blake3.Tests
             var hash = hasher.Finalize();
             AssertTextAreEqual(BigExpected, hash.ToString());
         }
+
+        [Test]
+        public void TestUpdateAndUpdateJoinGiveSameHash()
+        {
+            using var hasher = Hasher.New();
+            hasher.Update(BigData);
+            var updateHash = hasher.Finalize();
+
+            hasher.Reset();
+            hasher.UpdateWithJoin(BigData);
+            var updateJoinHash = hasher.Finalize();
+
+            AssertTextAreEqual(updateHash.ToString(), updateJoinHash.ToString());
+            AssertTextAreEqual(BigExpected, updateHash.ToString());
+            AssertTextAreEqual(BigExpected, updateJoinHash.ToString());
+        }
+
+        [Test]
+        public void TestFinalizeWithOffset()
+        {
+            using var hasher = Hasher.New();
+            hasher.Update(BigData);
+            var bigHash = new byte[1024 * 1024].AsSpan();
+            hasher.Finalize(bigHash);
+
+            var loopHash = new byte[1024].AsSpan();
+            var reconstructedHash = new byte[1024 * 1024].AsSpan();
+            for(var i = bigHash.Length; i > 0; i -= 1024)
+            {
+                hasher.Finalize(i - 1024, loopHash);
+                AssertTextAreEqual(bigHash.Slice(i-1024, 1024).ToString(), loopHash.ToString());
+                loopHash.CopyTo(reconstructedHash.Slice(i - 1024, 1024));
+            }
+
+            Assert.True(bigHash.SequenceEqual(reconstructedHash.ToArray()));
+        }
     }
 }

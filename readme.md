@@ -35,6 +35,15 @@ hasher.Update(Encoding.UTF8.GetBytes("BLAKE3"));
 var hash = hasher.Finalize();
 ```
 
+Or seek in the output "stream" to any position:
+
+```c#
+using var hasher = Blake3.Hasher.New();
+hasher.Update(Encoding.UTF8.GetBytes("BLAKE3"));
+var hashAtPosition = new byte[1024];
+var hash = hasher.Finalize(4242, hashAtPosition);
+```
+
 Or hash a stream on the go with `Blake3Stream`:
 
 ```c#
