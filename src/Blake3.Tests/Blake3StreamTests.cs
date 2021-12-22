@@ -21,6 +21,37 @@ namespace Blake3.Tests
             AssertTextAreEqual(HasherTests.BigExpected, blake3Stream.ComputeHash().ToString());
         }
 
+        private static int FillBuffer(Stream stream, ref byte[] buffer)
+        {
+           int read;
+           int totalRead = 0;
+           do
+           {
+              read = stream.Read(buffer, totalRead, buffer.Length - totalRead);
+              totalRead += read;
+           } while (read > 0 && totalRead < buffer.Length);
+
+           return totalRead;
+        }
+
+        [Test]
+        public void TestHashBufferedRead()
+        {
+           var stream = new MemoryStream(HasherTests.BigData);
+           using var blake3Stream = new Blake3Stream(stream);
+
+           const int bufferSize = 8 * 1024;
+           var buffer = new byte[bufferSize];
+           do
+           {
+              int bufferDataLength = FillBuffer(blake3Stream, ref buffer);
+              if (bufferDataLength == 0)
+                 break;
+           } while (true);
+
+           AssertTextAreEqual(HasherTests.BigExpected, blake3Stream.ComputeHash().ToString());
+        }
+        
         [Test]
         public void TestHashWrite()
         {

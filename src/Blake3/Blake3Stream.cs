@@ -83,7 +83,7 @@ namespace Blake3
             var length = _stream.Read(buffer, offset, count);
             if (length > 0)
             {
-                var span = new Span<byte>(buffer, offset, count);
+                var span = new Span<byte>(buffer, offset, length);
                 _hasher.Update(span);
             }
             return length;
@@ -94,7 +94,7 @@ namespace Blake3
             var length = await _stream.ReadAsync(buffer, offset, count, cancellationToken);
             if (length > 0)
             {
-                _hasher.Update(new Span<byte>(buffer, offset, count));
+                _hasher.Update(new Span<byte>(buffer, offset, length));
             }
             return length;
         }
