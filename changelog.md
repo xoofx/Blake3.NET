@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.1
+- Fix bug in Blake3Stream.Read methods 
+
 ## 0.5.0
 - Update to BLAKE3 1.2.0
 - Add `Hasher.Finalize(long offset, Span<byte> hash)`
