@@ -1,12 +1,12 @@
 [package]
 name = "blake3_dotnet"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Alexandre Mutel <alexandre_mutel@live.com>"]
 edition = "2018"
 
 [dependencies]
-blake3 = "1.2.0"
-libc = "0.2.80"
+blake3 = "1.4.1"
+libc = "0.2.147"
 
 [profile.release]
 lto = true
