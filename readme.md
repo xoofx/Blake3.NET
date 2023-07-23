@@ -4,13 +4,13 @@
 
 Blake3.NET is a fast managed wrapper around the SIMD Rust implementations of the [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) cryptographic hash function.
 
-> The current _native_ version of BLAKE3 used by Blake3.NET is `1.2.0`
+> The current _native_ version of BLAKE3 used by Blake3.NET is `1.4.1`
 
 ## Features
 
-- Compatible with .NET5.0+.
+- Compatible with .NET6.0+.
 - Fast interop with `Span` friendly API.
-- API similar to the [Blake3 Rust API](https://docs.rs/blake3/0.3.7/blake3/).
+- API similar to the [Blake3 Rust API](https://docs.rs/blake3/1.4.1/blake3/).
 - CPU SIMD Hardware accelerated with dynamic CPU feature detection.
   - Multiple [platforms](#platforms) supported.
 - Incremental update API via `Hasher`.
@@ -177,7 +177,7 @@ AMD Ryzen 9 3900X, 1 CPU, 24 logical and 12 physical cores
 
 ## How to Build?
 
-You need to install the [.NET 6 SDK](https://dotnet.microsoft.com/download/dotnet/6.0) or latest Visual Studio 2022. Then from the root folder:
+You need to install the [.NET 7 SDK](https://dotnet.microsoft.com/download/dotnet/7.0) or latest Visual Studio 2022. Then from the root folder:
 
 ```console
 $ dotnet build src -c Release
@@ -191,4 +191,4 @@ This software is released under the [BSD-Clause 2 license](https://opensource.or
 
 ## Author
 
-Alexandre Mutel aka [xoofx](http://xoofx.com).
+Alexandre Mutel aka [xoofx](https://xoofx.com).

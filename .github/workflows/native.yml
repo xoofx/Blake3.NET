@@ -49,7 +49,7 @@ jobs:
           ./build-win-arm64.ps1
 #          ./build-win-arm.ps1
     - name: Artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: native-${{ matrix.os }}
         path: lib/blake3_dotnet/build/
