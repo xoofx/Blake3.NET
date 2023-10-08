@@ -13,11 +13,7 @@ namespace Blake3.Tests
         {
             var stream = new MemoryStream(HasherTests.BigData);
             using var blake3Stream = new Blake3Stream(stream);
-#if NET5_0
-            blake3Stream.Read(new byte[HasherTests.BigData.Length]);
-#else
-            blake3Stream.Read(new byte[HasherTests.BigData.Length], 0, HasherTests.BigData.Length);
-#endif
+            _ = blake3Stream.Read(new byte[HasherTests.BigData.Length]);
             AssertTextAreEqual(HasherTests.BigExpected, blake3Stream.ComputeHash().ToString());
         }
 
@@ -57,11 +53,7 @@ namespace Blake3.Tests
         {
             var stream = new MemoryStream();
             using var blake3Stream = new Blake3Stream(stream);
-#if NET5_0
             blake3Stream.Write(HasherTests.BigData);
-#else
-            blake3Stream.Write(HasherTests.BigData, 0, HasherTests.BigData.Length);
-#endif
             AssertTextAreEqual(HasherTests.BigExpected, blake3Stream.ComputeHash().ToString());
         }
     }

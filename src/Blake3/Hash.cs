@@ -6,7 +6,6 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace Blake3
 {
@@ -67,7 +66,7 @@ namespace Blake3
         public void CopyFromBytes(ReadOnlySpan<byte> data)
         {
             if (data.Length != 32) ThrowArgumentOutOfRange(data.Length);
-            data.CopyTo(this.AsSpanUnsafe());
+            data.CopyTo(this.AsSpan());
         }
 
         /// <summary>
@@ -86,7 +85,7 @@ namespace Blake3
 
         public bool Equals(Hash other)
         {
-            return this.AsSpanUnsafe().SequenceCompareTo(other.AsSpanUnsafe()) == 0;
+            return this.AsSpan().SequenceCompareTo(other.AsSpan()) == 0;
         }
 
         public override bool Equals(object obj)
@@ -96,7 +95,7 @@ namespace Blake3
 
         public override int GetHashCode()
         {
-            var values = MemoryMarshal.Cast<byte, int>(this.AsSpanUnsafe());
+            var values = MemoryMarshal.Cast<byte, int>(this.AsSpan());
             int hashcode = 0;
             for (int i = 0; i < values.Length; i++)
             {
@@ -107,33 +106,30 @@ namespace Blake3
 
         public override string ToString()
         {
-#if NET5_0
             return string.Create(Size * 2, this, (span, hash) =>
             {
-                var data = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref hash, 1));
-                for (int i = 0; i < Size; i++)
+                var data = hash.AsSpan();
+                for (int i = 0; i < data.Length; i++)
                 {
                     var b = data[i];
-                    span[i * 2] = Hex[(b >> 4) & 0xF];
-                    span[i * 2 + 1] = Hex[b & 0xF];
+                    span[i * 2] = (char)Hex[(b >> 4) & 0xF];
+                    span[i * 2 + 1] = (char)Hex[b & 0xF];
                 }
             });
-#else
-            unsafe
-            {
-                var builder = new StringBuilder(Size * 2);
-                fixed (byte* pBytes = &_byte1)
-                {
-                    for (int i = 0; i < Size; i++)
-                    {
-                        var b = pBytes[i];
-                        builder.Append(Hex[(b >> 4) & 0xF]);
-                        builder.Append(Hex[b & 0xF]);
-                    }
-                }
-                return builder.ToString();
-            }
-#endif
+        }
+
+        /// <summary>
+        /// Creates a span from a hash. The span returned has to follow the same lifetime than the hash referenced.
+        /// </summary>
+        /// <returns>The hash of the span</returns>
+        /// <remarks>This method is unsafe because you could return a Span from a local variable Hash that could be no longer valid on the stack.
+        /// Use this Span with the same variable scope of the original Hash.
+        /// It is safe to use this method if the referenced Hash is a field of a managed type.
+        /// </remarks>
+        [UnscopedRef]
+        public Span<byte> AsSpan()
+        {
+            return MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref this, 1));
         }
 
         public static bool operator ==(Hash left, Hash right)
@@ -153,24 +149,24 @@ namespace Blake3
             throw new ArgumentOutOfRangeException("data", $"Invalid size {size} of the data. Expecting 32");
         }
 
-        private static ReadOnlySpan<char> Hex => new ReadOnlySpan<char>(new char[]
+        private static ReadOnlySpan<byte> Hex => new ReadOnlySpan<byte>(new byte[]
         {
-            '0',
-            '1',
-            '2',
-            '3',
-            '4',
-            '5',
-            '6',
-            '7',
-            '8',
-            '9',
-            'a',
-            'b',
-            'c',
-            'd',
-            'e',
-            'f',
+            (byte)'0',
+            (byte)'1',
+            (byte)'2',
+            (byte)'3',
+            (byte)'4',
+            (byte)'5',
+            (byte)'6',
+            (byte)'7',
+            (byte)'8',
+            (byte)'9',
+            (byte)'a',
+            (byte)'b',
+            (byte)'c',
+            (byte)'d',
+            (byte)'e',
+            (byte)'f',
         });
     }
 }
