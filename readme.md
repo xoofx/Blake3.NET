@@ -8,7 +8,7 @@ Blake3.NET is a fast managed wrapper around the SIMD Rust implementations of the
 
 ## Features
 
-- Compatible with .NET6.0+.
+- Compatible with .NET7.0+.
 - Fast interop with `Span` friendly API.
 - API similar to the [Blake3 Rust API](https://docs.rs/blake3/1.4.1/blake3/).
 - CPU SIMD Hardware accelerated with dynamic CPU feature detection.
@@ -58,7 +58,7 @@ Or produce a message authentication code using a 256-bit key:
 using var blake3 = Hasher.NewKeyed(macKey);
 blake3.UpdateWithJoin(message);
 var tag = blake3.Finalize();
-byte[] authenticationTag = tag.AsSpanUnsafe().ToArray();
+byte[] authenticationTag = tag.AsSpan().ToArray();
 ````
 
 Or derive a subkey from a master key:
@@ -68,7 +68,7 @@ const string context = "[application] [commit timestamp] [purpose]";
 using var blake3 = Hasher.NewDeriveKey(Encoding.UTF8.GetBytes(context));
 blake3.Update(inputKeyingMaterial);
 var derivedKey = blake3.Finalize();
-byte[] subkey = derivedKey.AsSpanUnsafe().ToArray();
+byte[] subkey = derivedKey.AsSpan().ToArray();
 ```
 
 ## Platforms
