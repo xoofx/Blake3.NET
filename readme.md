@@ -8,7 +8,7 @@ Blake3.NET is a fast managed wrapper around the SIMD Rust implementations of the
 
 ## Features
 
-- Compatible with .NET7.0+.
+- Compatible with .NET Standard 2.0, including .NET Framework 4.6.1 or newer, .NET Core 2.0 or newer, and .NET 5 and newer.
 - Fast interop with `Span` friendly API.
 - API similar to the [Blake3 Rust API](https://docs.rs/blake3/1.4.1/blake3/).
 - CPU SIMD Hardware accelerated with dynamic CPU feature detection.
