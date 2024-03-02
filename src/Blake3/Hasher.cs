@@ -29,6 +29,14 @@ public unsafe struct Hasher : IDisposable
     /// </summary>
     private const int LimitPreemptive = 1024;
 
+    /// <summary>
+    /// Invalid constructor.
+    /// </summary>
+    [Obsolete("Use New() to create a new instance of Hasher", true)]
+    public Hasher()
+    {
+    }
+
     private Hasher(void* hasher)
     {
         _hasher = hasher;
