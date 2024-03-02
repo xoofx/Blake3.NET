@@ -12,22 +12,8 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-      with:
-        submodules: true
-        fetch-depth: 0
-
-    - name: Install .NET 7.0
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: '7.0.x'
-
-    - name: Build, Test, Pack, Publish
-      shell: bash
-      run: |
-        dotnet tool install -g dotnet-releaser --configfile .github/workflows/nuget_org_only.config
-        dotnet-releaser run --nuget-token "${{secrets.NUGET_TOKEN}}" --github-token "${{secrets.GITHUB_TOKEN}}" src/dotnet-releaser.toml
+    uses: xoofx/.github/.github/workflows/dotnet.yml@main
+    with:
+        dotnet-version: 7.0
+    secrets:
+      NUGET_TOKEN: ${{ secrets.NUGET_TOKEN }}      
