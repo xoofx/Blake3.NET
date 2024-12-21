@@ -1,4 +1,4 @@
-# Blake3<font color="A80016">.NET</span> [![Build Status](https://github.com/xoofx/Blake3.NET/workflows/managed/badge.svg?branch=master)](https://github.com/xoofx/Blake3.NET/actions) [![Build Status](https://github.com/xoofx/Blake3.NET/workflows/native/badge.svg?branch=master)](https://github.com/xoofx/Blake3.NET/actions) [![NuGet](https://img.shields.io/nuget/v/Blake3.svg)](https://www.nuget.org/packages/Blake3/)
+# Blake3<font color="A80016">.NET</span> [![managed](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml) [![native](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml) [![NuGet](https://img.shields.io/nuget/v/Blake3.svg)](https://www.nuget.org/packages/Blake3/)
 
 <img align="right" width="160px" height="160px" src="img/logo.png">
 
