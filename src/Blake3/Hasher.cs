@@ -17,7 +17,7 @@ namespace Blake3;
 /// Performance note: The <see cref="Update{T}"/> and <see cref="UpdateWithJoin{T}"/> methods perform poorly when the caller's input buffer is small.
 /// See their method docs below. A 16 KiB buffer is large enough to leverage all currently supported SIMD instruction sets.
 /// </remarks>
-public unsafe struct Hasher : IDisposable
+public unsafe partial struct Hasher : IDisposable
 {
     private const string DllName = "blake3_dotnet";
     private void* _hasher;
@@ -375,52 +375,65 @@ public unsafe struct Hasher : IDisposable
         throw new ArgumentOutOfRangeException("output", $"Invalid size {size} of the output buffer. Expecting >= 32");
     }
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [LibraryImport(DllName)]
     [SuppressGCTransition]
-    private static extern void* blake3_new();
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void* blake3_new();
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [LibraryImport(DllName)]
     [SuppressGCTransition]
-    private static extern void* blake3_new_keyed(void* ptr32Bytes);
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void* blake3_new_keyed(void* ptr32Bytes);
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [LibraryImport(DllName)]
     [SuppressGCTransition]
-    private static extern void* blake3_new_derive_key(void* ptr, void* size);
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void* blake3_new_derive_key(void* ptr, void* size);
         
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [LibraryImport(DllName)]
     [SuppressGCTransition]
-    private static extern void blake3_hash(void* ptr, void* size, void* ptrOut);
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void blake3_hash(void* ptr, void* size, void* ptrOut);
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "blake3_hash")]
-    private static extern void blake3_hash_preemptive(void* ptr, void* size, void* ptrOut);
+    [LibraryImport(DllName, EntryPoint = "blake3_hash")]
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void blake3_hash_preemptive(void* ptr, void* size, void* ptrOut);
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [LibraryImport(DllName)]
     [SuppressGCTransition]
-    private static extern void blake3_delete(void* hasher);
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void blake3_delete(void* hasher);
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [LibraryImport(DllName)]
     [SuppressGCTransition]
-    private static extern void blake3_reset(void* hasher);
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void blake3_reset(void* hasher);
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [LibraryImport(DllName)]
     [SuppressGCTransition]
-    private static extern void blake3_update(void* hasher, void* ptr, void* size);
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void blake3_update(void* hasher, void* ptr, void* size);
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "blake3_update")]
-    private static extern void blake3_update_preemptive(void* hasher, void* ptr, void* size);
+    [LibraryImport(DllName, EntryPoint = "blake3_update")]
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void blake3_update_preemptive(void* hasher, void* ptr, void* size);
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    private static extern void blake3_update_rayon(void* hasher, void* ptr, void* size);
+    [LibraryImport(DllName)]
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void blake3_update_rayon(void* hasher, void* ptr, void* size);
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [LibraryImport(DllName)]
     [SuppressGCTransition]
-    private static extern void blake3_finalize(void* hasher, void* ptr);
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void blake3_finalize(void* hasher, void* ptr);
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [LibraryImport(DllName)]
     [SuppressGCTransition]
-    private static extern void blake3_finalize_xof(void* hasher, void* ptr, void* size);
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void blake3_finalize_xof(void* hasher, void* ptr, void* size);
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    [LibraryImport(DllName)]
     [SuppressGCTransition]
-    private static extern void blake3_finalize_seek_xof(void* hasher, ulong offset, void* ptr, void* size);
+    [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
+    private static partial void blake3_finalize_seek_xof(void* hasher, ulong offset, void* ptr, void* size);
 }
