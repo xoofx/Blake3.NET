@@ -9,6 +9,12 @@ on:
     - '*.md'
     - '*.txt'
   pull_request:
+    paths-ignore:
+    - 'img/**'
+    - 'doc/**'
+    - 'src/**'
+    - '*.md'
+    - '*.txt'    
 
 defaults:
   run:
