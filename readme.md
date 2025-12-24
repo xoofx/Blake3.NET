@@ -4,11 +4,11 @@
 
 Blake3.NET is a fast managed wrapper around the SIMD Rust implementations of the [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) cryptographic hash function.
 
-> The current _native_ version of BLAKE3 used by Blake3.NET is `1.5.5`
+> The current _native_ version of BLAKE3 used by Blake3.NET is `1.8.2`
 
 ## Features
 
-- Compatible with .NET7.0+.
+- Compatible with .NET8.0+.
 - Fast interop with `Span` friendly API.
 - API similar to the [Blake3 Rust API](https://docs.rs/blake3/1.4.1/blake3/).
 - CPU SIMD Hardware accelerated with dynamic CPU feature detection.
