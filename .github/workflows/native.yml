@@ -24,13 +24,13 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-latest, macos-latest]
+        os: [ubuntu-22.04, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
     - name: Build Linux
-      if: matrix.os == 'ubuntu-20.04'
+      if: matrix.os == 'ubuntu-22.04'
       run: |
           chmod 755 *.sh
           echo "building linux-x64"
