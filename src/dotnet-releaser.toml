@@ -1,6 +1,6 @@
 # configuration file for dotnet-releaser
 [msbuild]
-project = "./Blake3.NET.sln"
+project = "./Blake3.NET.slnx"
 [github]
 user = "xoofx"
 repo = "Blake3.NET"

@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="../.github/workflows/managed.yml" />
+    <File Path="../.github/workflows/native.yml" />
+    <File Path="../changelog.md" />
+    <File Path="../license.txt" />
+    <File Path="../readme.md" />
+    <File Path="global.json" />
+  </Folder>
+  <Project Path="Blake3.Benchmarks/Blake3.Benchmarks.csproj" />
+  <Project Path="Blake3.Tests/Blake3.Tests.csproj" />
+  <Project Path="Blake3/Blake3.csproj" />
+</Solution>
