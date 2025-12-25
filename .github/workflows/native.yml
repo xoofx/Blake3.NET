@@ -32,21 +32,27 @@ jobs:
     - name: Build Linux
       if: matrix.os == 'ubuntu-22.04'
       run: |
+          sudo apt-get update
           chmod 755 *.sh
           echo "building linux-x64"
           ./build-linux-x64.sh
           echo "building linux-arm64"
-          sudo apt-get install gcc-aarch64-linux-gnu      
+          sudo apt-get install -y gcc-aarch64-linux-gnu
           ./build-linux-arm64.sh
           echo "building linux-arm"
-          sudo apt-get install gcc-arm-linux-gnueabihf      
+          sudo apt-get install -y gcc-arm-linux-gnueabihf
           ./build-linux-arm.sh
-    - name: Build macOS
+    - name: Build macOS and musl Linux
       if: matrix.os == 'macos-latest'
       run: |
           chmod 755 *.sh
           ./build-osx-x64.sh
           ./build-osx-arm64.sh
+          brew tap messense/macos-cross-toolchains
+          brew install aarch64-unknown-linux-musl
+          brew install x86_64-unknown-linux-musl
+          ./build-linux-musl-x64.sh
+          ./build-linux-musl-arm64.sh
     - name: Build Windows
       if: matrix.os == 'windows-latest'
       run: |
