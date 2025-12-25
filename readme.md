@@ -177,7 +177,7 @@ AMD Ryzen 9 3900X, 1 CPU, 24 logical and 12 physical cores
 
 ## How to Build?
 
-You need to install the [.NET 7 SDK](https://dotnet.microsoft.com/download/dotnet/7.0) or latest Visual Studio 2022. Then from the root folder:
+You need to install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) or latest Visual Studio 2026. Then from the root folder:
 
 ```console
 $ dotnet build src -c Release
