@@ -110,5 +110,25 @@ namespace Blake3.Tests
 
             Assert.True(bigHash.SequenceEqual(reconstructedHash.ToArray()));
         }
+
+        [Test]
+        public void TestUpdateWithJoinEmptySpan()
+        {
+            using var hasher = Hasher.New();
+            hasher.UpdateWithJoin(ReadOnlySpan<byte>.Empty);
+            var hash = hasher.Finalize();
+            using var hasher2 = Hasher.New();
+            var expected = hasher2.Finalize();
+            Assert.AreEqual(expected, hash);
+        }
+
+        [Test]
+        public void TestFinalizeWithNegativeOffset()
+        {
+            using var hasher = Hasher.New();
+            hasher.Update(SimpleData);
+            var output = new byte[32];
+            Assert.Throws<ArgumentOutOfRangeException>(() => hasher.Finalize(-1L, output));
+        }
     }
 }

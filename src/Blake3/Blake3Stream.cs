@@ -101,7 +101,7 @@ public class Blake3Stream : Stream
         var length = await _stream.ReadAsync(buffer, cancellationToken);
         if (length > 0)
         {
-            _hasher.Update(buffer.Span);
+            _hasher.Update(buffer.Span.Slice(0, length));
         }
         return length;
     }
@@ -111,7 +111,7 @@ public class Blake3Stream : Stream
         var length = _stream.Read(buffer);
         if (length > 0)
         {
-            _hasher.Update(buffer);
+            _hasher.Update(buffer.Slice(0, length));
         }
         return length;
     }
