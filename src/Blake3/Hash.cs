@@ -6,6 +6,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 namespace Blake3;
 
@@ -85,7 +86,7 @@ public struct Hash : IEquatable<Hash>
 
     public bool Equals(Hash other)
     {
-        return this.AsSpan().SequenceCompareTo(other.AsSpan()) == 0;
+        return CryptographicOperations.FixedTimeEquals(AsSpan(), other.AsSpan());
     }
 
     public override bool Equals(object obj)

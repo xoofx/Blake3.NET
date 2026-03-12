@@ -1,4 +1,6 @@
+using System;
 using System.IO;
+using System.Threading.Tasks;
 using NUnit.Framework;
 
 namespace Blake3.Tests
@@ -55,6 +57,38 @@ namespace Blake3.Tests
             using var blake3Stream = new Blake3Stream(stream);
             blake3Stream.Write(HasherTests.BigData);
             AssertTextAreEqual(HasherTests.BigExpected, blake3Stream.ComputeHash().ToString());
+        }
+
+        [Test]
+        public void TestHashReadSpan_PartialRead()
+        {
+            var data = HasherTests.SimpleData;
+            var expected = HasherTests.SimpleExpected;
+
+            var stream = new MemoryStream(data);
+            using var blake3Stream = new Blake3Stream(stream);
+
+            var oversizedBuffer = new byte[data.Length + 1024];
+            var bytesRead = blake3Stream.Read(oversizedBuffer.AsSpan());
+
+            Assert.AreEqual(data.Length, bytesRead);
+            AssertTextAreEqual(expected, blake3Stream.ComputeHash().ToString());
+        }
+
+        [Test]
+        public async Task TestHashReadAsyncMemory_PartialRead()
+        {
+            var data = HasherTests.SimpleData;
+            var expected = HasherTests.SimpleExpected;
+
+            var stream = new MemoryStream(data);
+            await using var blake3Stream = new Blake3Stream(stream);
+
+            var oversizedBuffer = new byte[data.Length + 1024];
+            var bytesRead = await blake3Stream.ReadAsync(oversizedBuffer.AsMemory());
+
+            Assert.AreEqual(data.Length, bytesRead);
+            AssertTextAreEqual(expected, blake3Stream.ComputeHash().ToString());
         }
     }
 }

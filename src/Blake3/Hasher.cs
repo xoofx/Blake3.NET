@@ -183,7 +183,6 @@ public unsafe partial struct Hasher : IDisposable
     /// </remarks>
     public void UpdateWithJoin(ReadOnlySpan<byte> data)
     {
-        if (data == null) ThrowArgumentNullException();
         if (_hasher == null) ThrowNullReferenceException();
         fixed (void* ptr = data)
         {
@@ -283,6 +282,7 @@ public unsafe partial struct Hasher : IDisposable
     /// </remarks>
     public void Finalize(long offset, Span<byte> hash)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(offset, 0);
         Finalize((ulong)offset, hash);
     }
 
