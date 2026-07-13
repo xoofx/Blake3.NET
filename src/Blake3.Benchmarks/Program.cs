@@ -1,6 +1,4 @@
 extern alias ManagedBlake3;
-
-using System;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
@@ -8,7 +6,9 @@ using BenchmarkDotNet.Exporters.Json;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using Blake2Fast;
-using ManagedHash = ManagedBlake3::Blake3.Hash;
+using CommandLine;
+using System;
+using System.Runtime.InteropServices;
 using ManagedHasher = ManagedBlake3::Blake3.Hasher;
 
 namespace Blake3.Benchmarks
@@ -29,31 +29,31 @@ namespace Blake3.Benchmarks
         }
 
         [Benchmark(Baseline = true, Description = "Blake3 native")]
-        public Hash RunBlake3Native()
+        public uint RunBlake3Native()
         {
-            return Hasher.Hash(_data);
+            return MemoryMarshal.Cast<byte, uint>(Hasher.Hash(_data).AsSpan())[0];
         }
 
         [Benchmark(Description = "Blake3 native parallel")]
-        public Hash RunBlake3NativeParallel()
+        public uint RunBlake3NativeParallel()
         {
             using var hasher = Hasher.New();
             hasher.UpdateWithJoin(_data);
-            return hasher.Finalize();
+            return MemoryMarshal.Cast<byte, uint>(hasher.Finalize().AsSpan())[0];
         }
 
         [Benchmark(Description = "Blake3 managed")]
-        public ManagedHash RunBlake3Managed()
+        public uint RunBlake3Managed()
         {
-            return ManagedHasher.Hash(_data);
+            return MemoryMarshal.Cast<byte, uint>(ManagedHasher.Hash(_data).AsSpan())[0];
         }
 
         [Benchmark(Description = "Blake3 managed parallel")]
-        public ManagedHash RunBlake3ManagedParallel()
+        public uint RunBlake3ManagedParallel()
         {
             using var hasher = ManagedHasher.New();
             hasher.UpdateWithJoin(_data);
-            return hasher.Finalize();
+            return MemoryMarshal.Cast<byte, uint>(hasher.Finalize().AsSpan())[0];
         }
 
         //[Benchmark(Description = "Blake2Fast")]

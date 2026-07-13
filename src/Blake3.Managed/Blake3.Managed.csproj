@@ -3,7 +3,7 @@
   <Import Project="..\Blake3\Blake3.props" />
 
   <PropertyGroup>
-    <TargetFrameworks>net10.0</TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Blake3.Managed</AssemblyName>
     <RootNamespace>Blake3</RootNamespace>
     <PackageId>Blake3.Managed</PackageId>
