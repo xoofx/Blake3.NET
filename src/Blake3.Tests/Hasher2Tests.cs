@@ -1,7 +1,9 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using NUnit.Framework;
 
 namespace Blake3.Tests;
@@ -35,6 +37,49 @@ public class Hasher2Tests
         Hasher2.Hash(ReadOnlySpan<byte>.Empty, output);
 
         Assert.That(Convert.ToHexStringLower(output), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void AllOfficialVectorsMatch()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "test_vectors.json")));
+        var root = document.RootElement;
+        var key = Encoding.ASCII.GetBytes(root.GetProperty("key").GetString()!);
+        var context = root.GetProperty("context_string").GetString()!;
+
+        foreach (var testCase in root.GetProperty("cases").EnumerateArray())
+        {
+            var inputLength = testCase.GetProperty("input_len").GetInt32();
+            var input = CreateVectorInput(inputLength);
+            var expectedHash = Convert.FromHexString(testCase.GetProperty("hash").GetString()!);
+            var expectedKeyedHash = Convert.FromHexString(testCase.GetProperty("keyed_hash").GetString()!);
+            var expectedDeriveKey = Convert.FromHexString(testCase.GetProperty("derive_key").GetString()!);
+            var actualHash = new byte[expectedHash.Length];
+            var actualKeyedHash = new byte[expectedKeyedHash.Length];
+            var actualDeriveKey = new byte[expectedDeriveKey.Length];
+
+            Hasher2.Hash(input, actualHash);
+            using (var keyedHasher = Hasher2.NewKeyed(key))
+            {
+                keyedHasher.Update(input);
+                keyedHasher.Finalize(actualKeyedHash);
+            }
+
+            using (var deriveHasher = Hasher2.NewDeriveKey(context))
+            {
+                deriveHasher.Update(input);
+                deriveHasher.Finalize(actualDeriveKey);
+            }
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(actualHash, Is.EqualTo(expectedHash), $"regular input_len={inputLength}");
+                Assert.That(actualKeyedHash, Is.EqualTo(expectedKeyedHash), $"keyed input_len={inputLength}");
+                Assert.That(actualDeriveKey, Is.EqualTo(expectedDeriveKey), $"derive input_len={inputLength}");
+                Assert.That(Hasher2.Hash(input).AsSpan().SequenceEqual(expectedHash.AsSpan(0, Hash.Size)), Is.True,
+                    $"default output input_len={inputLength}");
+            });
+        }
     }
 
     [TestCaseSource(nameof(BoundaryLengths))]
@@ -125,6 +170,13 @@ public class Hasher2Tests
             managed.Finalize(offset, managedOutput);
             Assert.That(managedOutput, Is.EqualTo(nativeOutput), $"offset={offset}, length={length}");
         }
+
+        var highOffset = ((ulong)uint.MaxValue * 64) + 31;
+        var nativeHighOutput = new byte[131];
+        var managedHighOutput = new byte[131];
+        native.Finalize(highOffset, nativeHighOutput);
+        managed.Finalize(highOffset, managedHighOutput);
+        Assert.That(managedHighOutput, Is.EqualTo(nativeHighOutput), $"offset={highOffset}, length=131");
 
         native.Reset();
         managed.Reset();

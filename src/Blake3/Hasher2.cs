@@ -46,6 +46,13 @@ public sealed class Hasher2 : IDisposable
     /// <returns>The calculated 32-byte hash.</returns>
     public static Hash Hash(ReadOnlySpan<byte> input)
     {
+        if (input.Length <= Blake3ManagedCore.ChunkLength)
+        {
+            var hash = new Hash();
+            Blake3ManagedCore.HashSingleChunk(input, hash.AsSpan());
+            return hash;
+        }
+
         using var hasher = New();
         hasher.Update(input);
         return hasher.Finalize();
@@ -58,6 +65,12 @@ public sealed class Hasher2 : IDisposable
     /// <param name="output">The destination for the hash output.</param>
     public static void Hash(ReadOnlySpan<byte> input, Span<byte> output)
     {
+        if (input.Length <= Blake3ManagedCore.ChunkLength)
+        {
+            Blake3ManagedCore.HashSingleChunk(input, output);
+            return;
+        }
+
         using var hasher = New();
         hasher.Update(input);
         hasher.Finalize(output);
@@ -137,6 +150,9 @@ public sealed class Hasher2 : IDisposable
     {
         ThrowIfDisposed();
         Span<uint> chunkChainingValue = stackalloc uint[8];
+        Span<uint> parallelChainingValues = data.Length > 4 * Blake3ManagedCore.ChunkLength
+            ? stackalloc uint[16 * 8]
+            : Span<uint>.Empty;
 
         while (!data.IsEmpty)
         {
@@ -146,6 +162,44 @@ public sealed class Hasher2 : IDisposable
                 var totalChunks = _chunkCounter + 1;
                 AddChunkChainingValue(chunkChainingValue, totalChunks);
                 ResetChunkState(totalChunks);
+            }
+
+            if (ChunkStateLength == 0 &&
+                (_chunkCounter & 15) == 0 &&
+                data.Length > 16 * Blake3ManagedCore.ChunkLength &&
+                Blake3ManagedCore.TryHash16Chunks(data, _keyWords, _chunkCounter, _flags, parallelChainingValues))
+            {
+                Blake3ManagedCore.ReduceChunkChainingValues(parallelChainingValues, 16, _keyWords, _flags);
+                _chunkCounter += 16;
+                AddSubtreeChainingValue(parallelChainingValues[..8], _chunkCounter, 4);
+                ResetChunkState(_chunkCounter);
+                data = data[(16 * Blake3ManagedCore.ChunkLength)..];
+                continue;
+            }
+
+            var vectorDegree = System.Numerics.Vector<uint>.Count;
+            if (ChunkStateLength == 0 &&
+                (_chunkCounter & (ulong)(vectorDegree - 1)) == 0 &&
+                data.Length > vectorDegree * Blake3ManagedCore.ChunkLength)
+            {
+                var degree = Blake3ManagedCore.TryHashVectorChunks(
+                    data,
+                    _keyWords,
+                    _chunkCounter,
+                    _flags,
+                    parallelChainingValues);
+                if (degree > 0)
+                {
+                    Blake3ManagedCore.ReduceChunkChainingValues(parallelChainingValues, degree, _keyWords, _flags);
+                    _chunkCounter += (ulong)degree;
+                    AddSubtreeChainingValue(
+                        parallelChainingValues[..8],
+                        _chunkCounter,
+                        System.Numerics.BitOperations.Log2((uint)degree));
+                    ResetChunkState(_chunkCounter);
+                    data = data[(degree * Blake3ManagedCore.ChunkLength)..];
+                    continue;
+                }
             }
 
             var take = Math.Min(Blake3ManagedCore.ChunkLength - ChunkStateLength, data.Length);
@@ -359,6 +413,34 @@ public sealed class Hasher2 : IDisposable
         Span<uint> compressionOutput = stackalloc uint[16];
         chunkChainingValue.CopyTo(newChainingValue);
 
+        while ((totalChunks & 1) == 0)
+        {
+            _stackLength--;
+            _chainingValueStack.AsSpan(_stackLength * 8, 8).CopyTo(parentBlock);
+            newChainingValue.CopyTo(parentBlock[8..]);
+            Blake3ManagedCore.Compress(
+                _keyWords,
+                parentBlock,
+                0,
+                Blake3ManagedCore.BlockLength,
+                _flags | Blake3ManagedCore.Parent,
+                compressionOutput);
+            compressionOutput[..8].CopyTo(newChainingValue);
+            totalChunks >>= 1;
+        }
+
+        newChainingValue.CopyTo(_chainingValueStack.AsSpan(_stackLength * 8, 8));
+        _stackLength++;
+    }
+
+    private void AddSubtreeChainingValue(ReadOnlySpan<uint> subtreeChainingValue, ulong totalChunks, int level)
+    {
+        Span<uint> newChainingValue = stackalloc uint[8];
+        Span<uint> parentBlock = stackalloc uint[16];
+        Span<uint> compressionOutput = stackalloc uint[16];
+        subtreeChainingValue.CopyTo(newChainingValue);
+
+        totalChunks >>= level;
         while ((totalChunks & 1) == 0)
         {
             _stackLength--;

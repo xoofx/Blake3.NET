@@ -24,20 +24,16 @@ namespace Blake3.Benchmarks
             new Random(42).NextBytes(_data);
         }
 
-        [Benchmark(Description = "Blake3")]
-        public void RunBlake3()
+        [Benchmark(Baseline = true, Description = "Blake3 native")]
+        public Hash RunBlake3Native()
         {
-            // Benchmark the WithJoin version
-            if (_data.Length >= 1000000)
-            {
-                using var hasher = Hasher.New();
-                hasher.UpdateWithJoin<byte>(_data);
-                hasher.Finalize();
-            }
-            else
-            {
-                Hasher.Hash(_data.AsSpan());
-            }
+            return Hasher.Hash(_data);
+        }
+
+        [Benchmark(Description = "Blake3 managed")]
+        public Hash RunBlake3Managed()
+        {
+            return Hasher2.Hash(_data);
         }
 
         //[Benchmark(Description = "Blake2Fast")]

@@ -2,7 +2,7 @@
 
 <img align="right" width="160px" height="160px" src="img/logo.png">
 
-Blake3.NET is a fast managed wrapper around the SIMD Rust implementations of the [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) cryptographic hash function.
+Blake3.NET provides both a fast managed wrapper around the SIMD Rust implementations and a fully managed .NET implementation of the [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) cryptographic hash function.
 
 > The current _native_ version of BLAKE3 used by Blake3.NET is `1.8.2`
 
@@ -14,6 +14,7 @@ Blake3.NET is a fast managed wrapper around the SIMD Rust implementations of the
 - CPU SIMD Hardware accelerated with dynamic CPU feature detection.
   - Multiple [platforms](#platforms) supported.
 - Incremental update API via `Hasher`.
+- Fully managed regular, keyed, derive-key, incremental, and XOF hashing via `Hasher2` on .NET 10.
 - Support for multi-threading hashing via `Hasher.UpdateWithJoin`.
 
 ## Usage
@@ -34,6 +35,18 @@ using var hasher = Blake3.Hasher.New();
 hasher.Update(Encoding.UTF8.GetBytes("BLAKE3"));
 var hash = hasher.Finalize();
 ```
+
+Use `Hasher2` when a native dependency is undesirable. It has the same hashing, keyed/derive-key,
+incremental, reset, and seekable XOF surface used in the examples above:
+
+```csharp
+using var hasher = Blake3.Hasher2.New();
+hasher.Update(Encoding.UTF8.GetBytes("BLAKE3"));
+var hash = hasher.Finalize();
+```
+
+`Hasher2.UpdateWithJoin` currently preserves `Update` semantics but runs serially. The managed
+implementation uses runtime-selected scalar and 128/256/512-bit SIMD paths where available.
 
 Or seek in the output "stream" to any position:
 

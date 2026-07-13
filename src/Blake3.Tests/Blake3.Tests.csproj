@@ -26,4 +26,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Blake3\Blake3.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="test_vectors.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
