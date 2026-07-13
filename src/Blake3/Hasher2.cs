@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Blake3;
 
@@ -20,6 +21,9 @@ namespace Blake3;
 /// </remarks>
 public sealed class Hasher2 : IDisposable
 {
+    private const int ParallelThresholdBytes = 192 * 1024;
+    private const int MinimumParallelBytesPerWorker = 32 * 1024;
+
     private readonly uint[] _keyWords = new uint[8];
     private readonly uint[] _chunkChainingValue = new uint[8];
     private readonly byte[] _block = new byte[Blake3ManagedCore.BlockLength];
@@ -158,10 +162,7 @@ public sealed class Hasher2 : IDisposable
         {
             if (ChunkStateLength == Blake3ManagedCore.ChunkLength)
             {
-                GetChunkChainingValue(chunkChainingValue);
-                var totalChunks = _chunkCounter + 1;
-                AddChunkChainingValue(chunkChainingValue, totalChunks);
-                ResetChunkState(totalChunks);
+                CompleteChunkState(chunkChainingValue);
             }
 
             if (ChunkStateLength == 0 &&
@@ -220,18 +221,99 @@ public sealed class Hasher2 : IDisposable
     /// Adds bytes to the hash state, with the same result as <see cref="Update(ReadOnlySpan{byte})"/>.
     /// </summary>
     /// <param name="data">The bytes to hash.</param>
-    /// <remarks>The initial managed implementation is serial; this method is reserved for parallel tree hashing.</remarks>
+    /// <remarks>Large aligned subtrees are hashed in parallel; smaller inputs use the serial update path.</remarks>
     /// <exception cref="ObjectDisposedException">This instance has been disposed.</exception>
-    public void UpdateWithJoin(ReadOnlySpan<byte> data) => Update(data);
+    public void UpdateWithJoin(ReadOnlySpan<byte> data)
+    {
+        ThrowIfDisposed();
+        if (data.Length < ParallelThresholdBytes || Environment.ProcessorCount <= 1)
+        {
+            Update(data);
+            return;
+        }
+
+        Span<uint> chunkChainingValue = stackalloc uint[8];
+        if (ChunkStateLength != 0)
+        {
+            var take = Math.Min(Blake3ManagedCore.ChunkLength - ChunkStateLength, data.Length);
+            if (take != 0)
+            {
+                Update(data[..take]);
+                data = data[take..];
+            }
+
+            if (data.IsEmpty)
+            {
+                return;
+            }
+
+            CompleteChunkState(chunkChainingValue);
+        }
+
+        // Keep at least one byte (and therefore the final chunk output) in the ordinary chunk
+        // state. Finalization needs that output to apply the root flag exactly as serial Update does.
+        var completeChunkCount = (data.Length - 1) / Blake3ManagedCore.ChunkLength;
+        var chunkDegree = Blake3ManagedCore.SimdChunkDegree;
+        var misalignedChunks = (int)(_chunkCounter & (ulong)(chunkDegree - 1));
+        var alignmentChunks = misalignedChunks == 0 ? 0 : chunkDegree - misalignedChunks;
+        if (completeChunkCount < alignmentChunks)
+        {
+            Update(data);
+            return;
+        }
+
+        var parallelGroupCount = (completeChunkCount - alignmentChunks) / chunkDegree;
+        var parallelByteLength = parallelGroupCount * chunkDegree * Blake3ManagedCore.ChunkLength;
+        if (parallelGroupCount < 2 || parallelByteLength < ParallelThresholdBytes)
+        {
+            Update(data);
+            return;
+        }
+
+        if (alignmentChunks != 0)
+        {
+            var alignmentByteLength = alignmentChunks * Blake3ManagedCore.ChunkLength;
+            ProcessCompleteChunks(data[..alignmentByteLength], alignmentChunks, chunkChainingValue);
+            data = data[alignmentByteLength..];
+        }
+
+        var subtreeChainingValues = GC.AllocateUninitializedArray<uint>(parallelGroupCount * 8);
+        try
+        {
+            HashChunkGroupsInParallel(
+                data[..parallelByteLength],
+                chunkDegree,
+                parallelGroupCount,
+                subtreeChainingValues);
+
+            var subtreeLevel = System.Numerics.BitOperations.Log2((uint)chunkDegree);
+            for (var group = 0; group < parallelGroupCount; group++)
+            {
+                _chunkCounter += (ulong)chunkDegree;
+                AddSubtreeChainingValue(
+                    subtreeChainingValues.AsSpan(group * 8, 8),
+                    _chunkCounter,
+                    subtreeLevel);
+            }
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(subtreeChainingValues.AsSpan()));
+        }
+
+        ResetChunkState(_chunkCounter);
+        Update(data[parallelByteLength..]);
+    }
 
     /// <summary>
     /// Adds the in-memory bytes of unmanaged values to the hash state, with the same result as <see cref="Update{T}"/>.
     /// </summary>
     /// <typeparam name="T">The unmanaged element type.</typeparam>
     /// <param name="data">The values whose in-memory representation is hashed.</param>
-    /// <remarks>The initial managed implementation is serial; this method is reserved for parallel tree hashing.</remarks>
+    /// <remarks>Large aligned subtrees are hashed in parallel; smaller inputs use the serial update path.</remarks>
     /// <exception cref="ObjectDisposedException">This instance has been disposed.</exception>
-    public void UpdateWithJoin<T>(ReadOnlySpan<T> data) where T : unmanaged => Update(data);
+    public void UpdateWithJoin<T>(ReadOnlySpan<T> data) where T : unmanaged =>
+        UpdateWithJoin(MemoryMarshal.AsBytes(data));
 
     /// <summary>
     /// Finalizes the state and returns the default 256-bit output.
@@ -339,6 +421,73 @@ public sealed class Hasher2 : IDisposable
         var hasher = new Hasher2(contextKeyWords, Blake3ManagedCore.DeriveKeyMaterial);
         CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(contextKeyWords));
         return hasher;
+    }
+
+    private void CompleteChunkState(Span<uint> chainingValue)
+    {
+        GetChunkChainingValue(chainingValue);
+        var totalChunks = _chunkCounter + 1;
+        AddChunkChainingValue(chainingValue, totalChunks);
+        ResetChunkState(totalChunks);
+    }
+
+    private void ProcessCompleteChunks(ReadOnlySpan<byte> data, int chunkCount, Span<uint> chainingValue)
+    {
+        for (var chunk = 0; chunk < chunkCount; chunk++)
+        {
+            Blake3ManagedCore.HashChunkGroup(
+                data.Slice(chunk * Blake3ManagedCore.ChunkLength, Blake3ManagedCore.ChunkLength),
+                _keyWords,
+                _chunkCounter,
+                _flags,
+                1,
+                chainingValue);
+            _chunkCounter++;
+            AddChunkChainingValue(chainingValue, _chunkCounter);
+        }
+
+        ResetChunkState(_chunkCounter);
+    }
+
+    private unsafe void HashChunkGroupsInParallel(
+        ReadOnlySpan<byte> data,
+        int chunkDegree,
+        int groupCount,
+        uint[] subtreeChainingValues)
+    {
+        var groupByteLength = chunkDegree * Blake3ManagedCore.ChunkLength;
+        var workerCount = Math.Min(
+            groupCount,
+            Math.Min(
+                Environment.ProcessorCount,
+                Math.Max(1, data.Length / MinimumParallelBytesPerWorker)));
+        var startingChunkCounter = _chunkCounter;
+        var keyWords = _keyWords;
+        var flags = _flags;
+        var options = new ParallelOptions { MaxDegreeOfParallelism = workerCount };
+
+        fixed (byte* inputPointer = data)
+        {
+            var inputAddress = (nint)inputPointer;
+            Parallel.For(0, workerCount, options, worker =>
+            {
+                var firstGroup = (int)((long)worker * groupCount / workerCount);
+                var endGroup = (int)((long)(worker + 1) * groupCount / workerCount);
+                for (var group = firstGroup; group < endGroup; group++)
+                {
+                    var groupInput = new ReadOnlySpan<byte>(
+                        (void*)(inputAddress + (group * groupByteLength)),
+                        groupByteLength);
+                    Blake3ManagedCore.HashChunkGroup(
+                        groupInput,
+                        keyWords,
+                        startingChunkCounter + ((ulong)group * (ulong)chunkDegree),
+                        flags,
+                        chunkDegree,
+                        subtreeChainingValues.AsSpan(group * 8, 8));
+                }
+            });
+        }
     }
 
     private void UpdateChunkState(ReadOnlySpan<byte> data)

@@ -15,7 +15,7 @@ Blake3.NET provides both a fast managed wrapper around the SIMD Rust implementat
   - Multiple [platforms](#platforms) supported.
 - Incremental update API via `Hasher`.
 - Fully managed regular, keyed, derive-key, incremental, and XOF hashing via `Hasher2` on .NET 10.
-- Support for multi-threading hashing via `Hasher.UpdateWithJoin`.
+- Support for multi-threaded hashing via `Hasher.UpdateWithJoin` and `Hasher2.UpdateWithJoin`.
 
 ## Usage
 
@@ -45,7 +45,8 @@ hasher.Update(Encoding.UTF8.GetBytes("BLAKE3"));
 var hash = hasher.Finalize();
 ```
 
-`Hasher2.UpdateWithJoin` currently preserves `Update` semantics but runs serially. The managed
+`Hasher2.UpdateWithJoin` hashes large aligned subtrees in parallel and preserves the exact incremental
+semantics of `Update`; smaller inputs stay on the serial path to avoid scheduling overhead. The managed
 implementation uses runtime-selected scalar and 128/256/512-bit SIMD paths where available.
 
 Or seek in the output "stream" to any position:

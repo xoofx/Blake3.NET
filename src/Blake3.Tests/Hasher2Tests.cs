@@ -187,6 +187,106 @@ public class Hasher2Tests
         Assert.That(Hasher2.Hash(MemoryMarshal.AsBytes(values.AsSpan())), Is.EqualTo(managed.Finalize()));
     }
 
+    [TestCase(262143)]
+    [TestCase(262144)]
+    [TestCase(300123)]
+    [TestCase(524288)]
+    [TestCase(1000000)]
+    [TestCase(1048576)]
+    [TestCase(1048577)]
+    public void ParallelUpdateMatchesOrderedUpdateAtLargeBoundaries(int length)
+    {
+        var input = CreateVectorInput(length);
+        using var ordered = Hasher2.New();
+        using var joined = Hasher2.New();
+        ordered.Update(input);
+        joined.UpdateWithJoin(input);
+
+        var orderedOutput = new byte[257];
+        var joinedOutput = new byte[257];
+        ordered.Finalize(63, orderedOutput);
+        joined.Finalize(63, joinedOutput);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(joinedOutput, Is.EqualTo(orderedOutput));
+            Assert.That(joined.Finalize(), Is.EqualTo(Hasher.Hash(input)));
+        });
+    }
+
+    [TestCase(3 * 1024)]
+    [TestCase((3 * 1024) + 17)]
+    public void ParallelUpdatePreservesPartialChunksTreeOrderAndLaterUpdates(int prefixLength)
+    {
+        const int FirstParallelLength = 900123;
+        const int SecondParallelLength = 700321;
+        const int TailLength = 29;
+        var input = CreateVectorInput(prefixLength + FirstParallelLength + SecondParallelLength + TailLength);
+        using var ordered = Hasher2.New();
+        using var joined = Hasher2.New();
+
+        ordered.Update(input);
+        joined.Update(input.AsSpan(0, prefixLength));
+        joined.UpdateWithJoin(input.AsSpan(prefixLength, FirstParallelLength));
+        joined.UpdateWithJoin(input.AsSpan(prefixLength + FirstParallelLength, SecondParallelLength));
+        joined.Update(input.AsSpan(prefixLength + FirstParallelLength + SecondParallelLength, TailLength));
+
+        var firstOutput = joined.Finalize();
+        Assert.That(firstOutput, Is.EqualTo(ordered.Finalize()));
+        Assert.That(joined.Finalize(), Is.EqualTo(firstOutput), "Finalization must remain idempotent");
+
+        byte[] suffix = [0xA5, 0x5A, 0x11, 0x22, 0x33];
+        ordered.Update(suffix);
+        joined.Update(suffix);
+        Assert.That(joined.Finalize(), Is.EqualTo(ordered.Finalize()), "Updates after finalization must be accepted");
+    }
+
+    [Test]
+    public void ParallelKeyedDerivedAndGenericUpdatesMatchOrderedUpdates()
+    {
+        var input = CreateVectorInput(700123);
+        using var orderedKeyed = Hasher2.NewKeyed(VectorKey);
+        using var joinedKeyed = Hasher2.NewKeyed(VectorKey);
+        orderedKeyed.Update(input);
+        joinedKeyed.UpdateWithJoin(input);
+
+        using var orderedDerived = Hasher2.NewDeriveKey(VectorContext);
+        using var joinedDerived = Hasher2.NewDeriveKey(VectorContext);
+        orderedDerived.Update(input);
+        joinedDerived.UpdateWithJoin(input);
+
+        var values = Enumerable.Range(0, 100003).Select(index => unchecked((uint)(index * 2654435761u))).ToArray();
+        using var orderedGeneric = Hasher2.New();
+        using var joinedGeneric = Hasher2.New();
+        orderedGeneric.Update<uint>(values);
+        joinedGeneric.UpdateWithJoin<uint>(values);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(joinedKeyed.Finalize(), Is.EqualTo(orderedKeyed.Finalize()));
+            Assert.That(joinedDerived.Finalize(), Is.EqualTo(orderedDerived.Finalize()));
+            Assert.That(joinedGeneric.Finalize(), Is.EqualTo(orderedGeneric.Finalize()));
+        });
+    }
+
+    [Test]
+    public void ParallelUpdateMatchesEveryStartingChunkAlignment()
+    {
+        const int ParallelLength = 300123;
+        for (var prefixChunks = 0; prefixChunks < 32; prefixChunks++)
+        {
+            var prefixLength = (prefixChunks * 1024) + 17;
+            var input = CreateVectorInput(prefixLength + ParallelLength);
+            using var ordered = Hasher2.New();
+            using var joined = Hasher2.New();
+            ordered.Update(input);
+            joined.Update(input.AsSpan(0, prefixLength));
+            joined.UpdateWithJoin(input.AsSpan(prefixLength));
+
+            Assert.That(joined.Finalize(), Is.EqualTo(ordered.Finalize()), $"Prefix chunks: {prefixChunks}");
+        }
+    }
+
     [Test]
     public void DeriveKeyByteContextUsesNativeLossyUtf8Semantics()
     {
@@ -206,6 +306,7 @@ public class Hasher2Tests
         Assert.Multiple(() =>
         {
             Assert.Throws<ObjectDisposedException>(() => hasher.Update([1]));
+            Assert.Throws<ObjectDisposedException>(() => hasher.UpdateWithJoin([1]));
             Assert.Throws<ObjectDisposedException>(() => hasher.Finalize());
             Assert.Throws<ObjectDisposedException>(() => hasher.Reset());
         });

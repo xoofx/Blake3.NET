@@ -14,7 +14,7 @@ namespace Blake3.Benchmarks
     {
         private byte[] _data;
 
-        [Params(4, 100, 1000, 10000, 100000, 1000000)]
+        [Params(4, 100, 1000, 10000, 65536, 100000, 131072, 262144, 524288, 1000000, 10000000)]
         public int N;
 
         [GlobalSetup]
@@ -30,10 +30,26 @@ namespace Blake3.Benchmarks
             return Hasher.Hash(_data);
         }
 
+        [Benchmark(Description = "Blake3 native parallel")]
+        public Hash RunBlake3NativeParallel()
+        {
+            using var hasher = Hasher.New();
+            hasher.UpdateWithJoin(_data);
+            return hasher.Finalize();
+        }
+
         [Benchmark(Description = "Blake3 managed")]
         public Hash RunBlake3Managed()
         {
             return Hasher2.Hash(_data);
+        }
+
+        [Benchmark(Description = "Blake3 managed parallel")]
+        public Hash RunBlake3ManagedParallel()
+        {
+            using var hasher = Hasher2.New();
+            hasher.UpdateWithJoin(_data);
+            return hasher.Finalize();
         }
 
         //[Benchmark(Description = "Blake2Fast")]

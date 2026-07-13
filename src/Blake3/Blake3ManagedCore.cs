@@ -30,6 +30,20 @@ internal static class Blake3ManagedCore
     internal const uint DeriveKeyContext = 1 << 5;
     internal const uint DeriveKeyMaterial = 1 << 6;
 
+    internal static int SimdChunkDegree
+    {
+        get
+        {
+            if (Avx512F.IsSupported)
+            {
+                return 16;
+            }
+
+            var degree = Vector<uint>.Count;
+            return Vector.IsHardwareAccelerated && degree is 4 or 8 ? degree : 1;
+        }
+    }
+
     internal static ReadOnlySpan<uint> InitializationVector =>
     [
         0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au,
@@ -129,6 +143,79 @@ internal static class Blake3ManagedCore
             output = output[take..];
             outputCounter++;
         }
+    }
+
+    [SkipLocalsInit]
+    internal static void HashChunkGroup(
+        ReadOnlySpan<byte> input,
+        ReadOnlySpan<uint> keyWords,
+        ulong chunkCounter,
+        uint flags,
+        int chunkCount,
+        Span<uint> output)
+    {
+        if (chunkCount == 1)
+        {
+            HashChunkChainingValue(input, keyWords, chunkCounter, flags, output);
+            return;
+        }
+
+        Span<uint> chainingValues = stackalloc uint[16 * 8];
+        var usedChainingValues = chainingValues[..(chunkCount * 8)];
+        var hashedChunkCount = chunkCount == 16 &&
+            TryHash16Chunks(input, keyWords, chunkCounter, flags, usedChainingValues)
+                ? 16
+                : TryHashVectorChunks(input, keyWords, chunkCounter, flags, usedChainingValues);
+
+        if (hashedChunkCount != chunkCount)
+        {
+            for (var chunk = 0; chunk < chunkCount; chunk++)
+            {
+                HashChunkChainingValue(
+                    input.Slice(chunk * ChunkLength, ChunkLength),
+                    keyWords,
+                    chunkCounter + (ulong)chunk,
+                    flags,
+                    usedChainingValues.Slice(chunk * 8, 8));
+            }
+        }
+
+        ReduceChunkChainingValues(usedChainingValues, chunkCount, keyWords, flags);
+        usedChainingValues[..8].CopyTo(output);
+    }
+
+    [SkipLocalsInit]
+    private static void HashChunkChainingValue(
+        ReadOnlySpan<byte> input,
+        ReadOnlySpan<uint> keyWords,
+        ulong chunkCounter,
+        uint flags,
+        Span<uint> output)
+    {
+        Span<uint> chainingValue = stackalloc uint[8];
+        Span<uint> blockWords = stackalloc uint[16];
+        Span<uint> compressionOutput = stackalloc uint[16];
+        keyWords.CopyTo(chainingValue);
+
+        for (var block = 0; block < ChunkLength / BlockLength; block++)
+        {
+            BytesToWords(input.Slice(block * BlockLength, BlockLength), blockWords);
+            var blockFlags = flags;
+            if (block == 0)
+            {
+                blockFlags |= ChunkStart;
+            }
+
+            if (block == (ChunkLength / BlockLength) - 1)
+            {
+                blockFlags |= ChunkEnd;
+            }
+
+            Compress(chainingValue, blockWords, chunkCounter, BlockLength, blockFlags, compressionOutput);
+            compressionOutput[..8].CopyTo(chainingValue);
+        }
+
+        chainingValue.CopyTo(output);
     }
 
     [SkipLocalsInit]
