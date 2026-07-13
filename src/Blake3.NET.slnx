@@ -3,9 +3,10 @@
     <File Path="../.github/workflows/managed.yml" />
     <File Path="../.github/workflows/native.yml" />
     <File Path="../AGENTS.md" />
-    <File Path="../changelog.md" />
     <File Path="../license.txt" />
     <File Path="../readme.md" />
+    <File Path="Directory.Packages.props" />
+    <File Path="dotnet-releaser.toml" />
     <File Path="global.json" />
   </Folder>
   <Project Path="Blake3.Benchmarks/Blake3.Benchmarks.csproj" />
