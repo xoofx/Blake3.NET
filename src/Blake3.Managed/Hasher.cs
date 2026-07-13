@@ -16,10 +16,10 @@ namespace Blake3;
 /// A fully managed incremental BLAKE3 hash state that can accept any number of writes.
 /// </summary>
 /// <remarks>
-/// This type provides a managed counterpart to <see cref="Hasher"/> so that the implementations can be
-/// validated and benchmarked side-by-side. Instances are not thread-safe.
+/// Instances are not thread-safe. Use <see cref="New"/>, <see cref="NewKeyed"/>, or
+/// <see cref="NewDeriveKey(string)"/> to construct an instance.
 /// </remarks>
-public sealed class Hasher2 : IDisposable
+public sealed class Hasher : IDisposable
 {
     private const int ParallelThresholdBytes = 192 * 1024;
     private const int MinimumParallelBytesPerWorker = 32 * 1024;
@@ -36,7 +36,15 @@ public sealed class Hasher2 : IDisposable
     private int _stackLength;
     private bool _disposed;
 
-    private Hasher2(ReadOnlySpan<uint> keyWords, uint flags)
+    /// <summary>
+    /// Invalid constructor.
+    /// </summary>
+    [Obsolete("Use New() to create a new instance of Hasher", true)]
+    public Hasher()
+    {
+    }
+
+    private Hasher(ReadOnlySpan<uint> keyWords, uint flags)
     {
         keyWords.CopyTo(_keyWords);
         keyWords.CopyTo(_chunkChainingValue);
@@ -84,7 +92,7 @@ public sealed class Hasher2 : IDisposable
     /// Constructs a managed hasher for the regular hash function.
     /// </summary>
     /// <returns>A new managed hasher.</returns>
-    public static Hasher2 New() => new(Blake3ManagedCore.InitializationVector, 0);
+    public static Hasher New() => new(Blake3ManagedCore.InitializationVector, 0);
 
     /// <summary>
     /// Constructs a managed hasher for the keyed hash function.
@@ -92,7 +100,7 @@ public sealed class Hasher2 : IDisposable
     /// <param name="key">The 32-byte secret key.</param>
     /// <returns>A new managed keyed hasher.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="key"/> is not exactly 32 bytes.</exception>
-    public static Hasher2 NewKeyed(ReadOnlySpan<byte> key)
+    public static Hasher NewKeyed(ReadOnlySpan<byte> key)
     {
         if (key.Length != Blake3ManagedCore.KeyLength)
         {
@@ -101,7 +109,7 @@ public sealed class Hasher2 : IDisposable
 
         Span<uint> keyWords = stackalloc uint[8];
         Blake3ManagedCore.BytesToWords(key, keyWords);
-        return new Hasher2(keyWords, Blake3ManagedCore.KeyedHash);
+        return new Hasher(keyWords, Blake3ManagedCore.KeyedHash);
     }
 
     /// <summary>
@@ -110,7 +118,7 @@ public sealed class Hasher2 : IDisposable
     /// <param name="text">A globally unique, application-specific context string.</param>
     /// <returns>A new managed key derivation hasher.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="text"/> is <see langword="null"/>.</exception>
-    public static Hasher2 NewDeriveKey(string text)
+    public static Hasher NewDeriveKey(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
         return NewDeriveKeyCore(Encoding.UTF8.GetBytes(text));
@@ -119,13 +127,13 @@ public sealed class Hasher2 : IDisposable
     /// <summary>
     /// Constructs a managed hasher for the key derivation function from a UTF-8 context.
     /// </summary>
-    /// <param name="context">A UTF-8 encoded, globally unique, application-specific context string.</param>
+    /// <param name="str">A UTF-8 encoded, globally unique, application-specific context string.</param>
     /// <returns>A new managed key derivation hasher.</returns>
     /// <remarks>Invalid UTF-8 is replaced to match the native wrapper's lossy UTF-8 conversion.</remarks>
-    public static Hasher2 NewDeriveKey(ReadOnlySpan<byte> context)
+    public static Hasher NewDeriveKey(ReadOnlySpan<byte> str)
     {
         // The native wrapper converts its byte input with Rust's String::from_utf8_lossy.
-        var normalizedContext = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(context));
+        var normalizedContext = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(str));
         return NewDeriveKeyCore(normalizedContext);
     }
 
@@ -406,10 +414,10 @@ public sealed class Hasher2 : IDisposable
 
     private uint ChunkStartFlag => _blocksCompressed == 0 ? Blake3ManagedCore.ChunkStart : 0;
 
-    private static Hasher2 NewDeriveKeyCore(ReadOnlySpan<byte> context)
+    private static Hasher NewDeriveKeyCore(ReadOnlySpan<byte> context)
     {
         Span<byte> contextKey = stackalloc byte[Blake3ManagedCore.KeyLength];
-        using (var contextHasher = new Hasher2(Blake3ManagedCore.InitializationVector, Blake3ManagedCore.DeriveKeyContext))
+        using (var contextHasher = new Hasher(Blake3ManagedCore.InitializationVector, Blake3ManagedCore.DeriveKeyContext))
         {
             contextHasher.Update(context);
             contextHasher.Finalize(contextKey);
@@ -418,7 +426,7 @@ public sealed class Hasher2 : IDisposable
         Span<uint> contextKeyWords = stackalloc uint[8];
         Blake3ManagedCore.BytesToWords(contextKey, contextKeyWords);
         CryptographicOperations.ZeroMemory(contextKey);
-        var hasher = new Hasher2(contextKeyWords, Blake3ManagedCore.DeriveKeyMaterial);
+        var hasher = new Hasher(contextKeyWords, Blake3ManagedCore.DeriveKeyMaterial);
         CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(contextKeyWords));
         return hasher;
     }
@@ -662,5 +670,5 @@ public sealed class Hasher2 : IDisposable
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowObjectDisposedException() => throw new ObjectDisposedException(nameof(Hasher2));
+    private static void ThrowObjectDisposedException() => throw new ObjectDisposedException(nameof(Hasher));
 }

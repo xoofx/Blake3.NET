@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Blake3\Blake3.csproj" />
+    <ProjectReference Include="..\Blake3.Managed\Blake3.Managed.csproj" Aliases="ManagedBlake3" />
   </ItemGroup>
 
   <ItemGroup>

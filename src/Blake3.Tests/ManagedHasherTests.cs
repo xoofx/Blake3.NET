@@ -1,17 +1,21 @@
+extern alias ManagedBlake3;
+
 using System;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using ManagedHash = ManagedBlake3::Blake3.Hash;
+using ManagedHasher = ManagedBlake3::Blake3.Hasher;
 using NUnit.Framework;
 
 namespace Blake3.Tests;
 
 /// <summary>
-/// Differential and boundary tests for <see cref="Hasher2"/>.
+/// Differential and boundary tests for <see cref="ManagedHasher"/>.
 /// </summary>
-public class Hasher2Tests
+public class ManagedHasherTests
 {
     private const string VectorContext = "BLAKE3 2019-12-27 16:29:52 test vectors context";
     private static readonly byte[] VectorKey = Encoding.ASCII.GetBytes("whats the Elvish word for friend");
@@ -34,7 +38,7 @@ public class Hasher2Tests
             "cce14d";
         var output = new byte[131];
 
-        Hasher2.Hash(ReadOnlySpan<byte>.Empty, output);
+        ManagedHasher.Hash(ReadOnlySpan<byte>.Empty, output);
 
         Assert.That(Convert.ToHexStringLower(output), Is.EqualTo(expected));
     }
@@ -58,14 +62,14 @@ public class Hasher2Tests
             var actualKeyedHash = new byte[expectedKeyedHash.Length];
             var actualDeriveKey = new byte[expectedDeriveKey.Length];
 
-            Hasher2.Hash(input, actualHash);
-            using (var keyedHasher = Hasher2.NewKeyed(key))
+            ManagedHasher.Hash(input, actualHash);
+            using (var keyedHasher = ManagedHasher.NewKeyed(key))
             {
                 keyedHasher.Update(input);
                 keyedHasher.Finalize(actualKeyedHash);
             }
 
-            using (var deriveHasher = Hasher2.NewDeriveKey(context))
+            using (var deriveHasher = ManagedHasher.NewDeriveKey(context))
             {
                 deriveHasher.Update(input);
                 deriveHasher.Finalize(actualDeriveKey);
@@ -76,7 +80,7 @@ public class Hasher2Tests
                 Assert.That(actualHash, Is.EqualTo(expectedHash), $"regular input_len={inputLength}");
                 Assert.That(actualKeyedHash, Is.EqualTo(expectedKeyedHash), $"keyed input_len={inputLength}");
                 Assert.That(actualDeriveKey, Is.EqualTo(expectedDeriveKey), $"derive input_len={inputLength}");
-                Assert.That(Hasher2.Hash(input).AsSpan().SequenceEqual(expectedHash.AsSpan(0, Hash.Size)), Is.True,
+                Assert.That(ManagedHasher.Hash(input).AsSpan().SequenceEqual(expectedHash.AsSpan(0, Hash.Size)), Is.True,
                     $"default output input_len={inputLength}");
             });
         }
@@ -90,17 +94,17 @@ public class Hasher2Tests
         var managedOutput = new byte[131];
 
         Hasher.Hash(input, nativeOutput);
-        Hasher2.Hash(input, managedOutput);
+        ManagedHasher.Hash(input, managedOutput);
 
         Assert.That(managedOutput, Is.EqualTo(nativeOutput));
-        Assert.That(Hasher2.Hash(input), Is.EqualTo(Hasher.Hash(input)));
+        AssertManagedHashEqualsNative(ManagedHasher.Hash(input), Hasher.Hash(input));
     }
 
     [TestCaseSource(nameof(BoundaryLengths))]
     public void FragmentedUpdatesMatchNative(int length)
     {
         var input = CreateVectorInput(length);
-        using var managed = Hasher2.New();
+        using var managed = ManagedHasher.New();
         var position = 0;
         var nextWrite = 1;
         while (position < input.Length)
@@ -111,16 +115,16 @@ public class Hasher2Tests
             nextWrite = (nextWrite * 3) % 1600 + 1;
         }
 
-        Assert.That(managed.Finalize(), Is.EqualTo(Hasher.Hash(input)));
+        AssertManagedHashEqualsNative(managed.Finalize(), Hasher.Hash(input));
 
         var first = managed.Finalize();
         managed.Update(new byte[] { 0xA5 });
         var extendedInput = input.Append((byte)0xA5).ToArray();
         Assert.Multiple(() =>
         {
-            Assert.That(Hasher2.Hash(extendedInput), Is.EqualTo(Hasher.Hash(extendedInput)), "One-shot extended input must match");
-            Assert.That(first, Is.EqualTo(Hasher.Hash(input)), "Finalization must be idempotent");
-            Assert.That(managed.Finalize(), Is.EqualTo(Hasher.Hash(extendedInput)), "Updates after finalization must be accepted");
+            AssertManagedHashEqualsNative(ManagedHasher.Hash(extendedInput), Hasher.Hash(extendedInput), "One-shot extended input must match");
+            AssertManagedHashEqualsNative(first, Hasher.Hash(input), "Finalization must be idempotent");
+            AssertManagedHashEqualsNative(managed.Finalize(), Hasher.Hash(extendedInput), "Updates after finalization must be accepted");
         });
     }
 
@@ -135,19 +139,19 @@ public class Hasher2Tests
         var input = CreateVectorInput(length);
 
         using var nativeKeyed = Hasher.NewKeyed(VectorKey);
-        using var managedKeyed = Hasher2.NewKeyed(VectorKey);
+        using var managedKeyed = ManagedHasher.NewKeyed(VectorKey);
         nativeKeyed.Update(input);
         managedKeyed.Update(input);
 
         using var nativeDerived = Hasher.NewDeriveKey(VectorContext);
-        using var managedDerived = Hasher2.NewDeriveKey(VectorContext);
+        using var managedDerived = ManagedHasher.NewDeriveKey(VectorContext);
         nativeDerived.Update(input);
         managedDerived.Update(input);
 
         Assert.Multiple(() =>
         {
-            Assert.That(managedKeyed.Finalize(), Is.EqualTo(nativeKeyed.Finalize()));
-            Assert.That(managedDerived.Finalize(), Is.EqualTo(nativeDerived.Finalize()));
+            AssertManagedHashEqualsNative(managedKeyed.Finalize(), nativeKeyed.Finalize());
+            AssertManagedHashEqualsNative(managedDerived.Finalize(), nativeDerived.Finalize());
         });
     }
 
@@ -156,7 +160,7 @@ public class Hasher2Tests
     {
         var input = CreateVectorInput(4097);
         using var native = Hasher.New();
-        using var managed = Hasher2.New();
+        using var managed = ManagedHasher.New();
         native.UpdateWithJoin(input.AsSpan(0, 1000));
         managed.UpdateWithJoin(input.AsSpan(0, 1000));
         native.Update(input.AsSpan(1000));
@@ -183,8 +187,8 @@ public class Hasher2Tests
         var values = new uint[] { 0, 1, 0x12345678, uint.MaxValue };
         native.Update<uint>(values);
         managed.Update<uint>(values);
-        Assert.That(managed.Finalize(), Is.EqualTo(native.Finalize()));
-        Assert.That(Hasher2.Hash(MemoryMarshal.AsBytes(values.AsSpan())), Is.EqualTo(managed.Finalize()));
+        AssertManagedHashEqualsNative(managed.Finalize(), native.Finalize());
+        Assert.That(ManagedHasher.Hash(MemoryMarshal.AsBytes(values.AsSpan())), Is.EqualTo(managed.Finalize()));
     }
 
     [TestCase(262143)]
@@ -197,8 +201,8 @@ public class Hasher2Tests
     public void ParallelUpdateMatchesOrderedUpdateAtLargeBoundaries(int length)
     {
         var input = CreateVectorInput(length);
-        using var ordered = Hasher2.New();
-        using var joined = Hasher2.New();
+        using var ordered = ManagedHasher.New();
+        using var joined = ManagedHasher.New();
         ordered.Update(input);
         joined.UpdateWithJoin(input);
 
@@ -210,7 +214,7 @@ public class Hasher2Tests
         Assert.Multiple(() =>
         {
             Assert.That(joinedOutput, Is.EqualTo(orderedOutput));
-            Assert.That(joined.Finalize(), Is.EqualTo(Hasher.Hash(input)));
+            AssertManagedHashEqualsNative(joined.Finalize(), Hasher.Hash(input));
         });
     }
 
@@ -222,8 +226,8 @@ public class Hasher2Tests
         const int SecondParallelLength = 700321;
         const int TailLength = 29;
         var input = CreateVectorInput(prefixLength + FirstParallelLength + SecondParallelLength + TailLength);
-        using var ordered = Hasher2.New();
-        using var joined = Hasher2.New();
+        using var ordered = ManagedHasher.New();
+        using var joined = ManagedHasher.New();
 
         ordered.Update(input);
         joined.Update(input.AsSpan(0, prefixLength));
@@ -245,19 +249,19 @@ public class Hasher2Tests
     public void ParallelKeyedDerivedAndGenericUpdatesMatchOrderedUpdates()
     {
         var input = CreateVectorInput(700123);
-        using var orderedKeyed = Hasher2.NewKeyed(VectorKey);
-        using var joinedKeyed = Hasher2.NewKeyed(VectorKey);
+        using var orderedKeyed = ManagedHasher.NewKeyed(VectorKey);
+        using var joinedKeyed = ManagedHasher.NewKeyed(VectorKey);
         orderedKeyed.Update(input);
         joinedKeyed.UpdateWithJoin(input);
 
-        using var orderedDerived = Hasher2.NewDeriveKey(VectorContext);
-        using var joinedDerived = Hasher2.NewDeriveKey(VectorContext);
+        using var orderedDerived = ManagedHasher.NewDeriveKey(VectorContext);
+        using var joinedDerived = ManagedHasher.NewDeriveKey(VectorContext);
         orderedDerived.Update(input);
         joinedDerived.UpdateWithJoin(input);
 
         var values = Enumerable.Range(0, 100003).Select(index => unchecked((uint)(index * 2654435761u))).ToArray();
-        using var orderedGeneric = Hasher2.New();
-        using var joinedGeneric = Hasher2.New();
+        using var orderedGeneric = ManagedHasher.New();
+        using var joinedGeneric = ManagedHasher.New();
         orderedGeneric.Update<uint>(values);
         joinedGeneric.UpdateWithJoin<uint>(values);
 
@@ -277,8 +281,8 @@ public class Hasher2Tests
         {
             var prefixLength = (prefixChunks * 1024) + 17;
             var input = CreateVectorInput(prefixLength + ParallelLength);
-            using var ordered = Hasher2.New();
-            using var joined = Hasher2.New();
+            using var ordered = ManagedHasher.New();
+            using var joined = ManagedHasher.New();
             ordered.Update(input);
             joined.Update(input.AsSpan(0, prefixLength));
             joined.UpdateWithJoin(input.AsSpan(prefixLength));
@@ -292,15 +296,15 @@ public class Hasher2Tests
     {
         byte[] invalidUtf8 = [0x66, 0x80, 0x80, 0x6F];
         using var native = Hasher.NewDeriveKey(invalidUtf8);
-        using var managed = Hasher2.NewDeriveKey(invalidUtf8);
+        using var managed = ManagedHasher.NewDeriveKey(invalidUtf8);
 
-        Assert.That(managed.Finalize(), Is.EqualTo(native.Finalize()));
+        AssertManagedHashEqualsNative(managed.Finalize(), native.Finalize());
     }
 
     [Test]
     public void DisposedHasherRejectsOperations()
     {
-        var hasher = Hasher2.New();
+        var hasher = ManagedHasher.New();
         hasher.Dispose();
 
         Assert.Multiple(() =>
@@ -317,9 +321,14 @@ public class Hasher2Tests
     {
         Assert.Multiple(() =>
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => Hasher2.NewKeyed(new byte[31]));
-            Assert.Throws<ArgumentOutOfRangeException>(() => Hasher2.NewKeyed(new byte[33]));
+            Assert.Throws<ArgumentOutOfRangeException>(() => ManagedHasher.NewKeyed(new byte[31]));
+            Assert.Throws<ArgumentOutOfRangeException>(() => ManagedHasher.NewKeyed(new byte[33]));
         });
+    }
+
+    private static void AssertManagedHashEqualsNative(ManagedHash actual, Hash expected, string message = null)
+    {
+        Assert.That(actual.AsSpan().SequenceEqual(expected.AsSpan()), Is.True, message);
     }
 
     private static byte[] CreateVectorInput(int length) => Enumerable.Range(0, length).Select(index => (byte)(index % 251)).ToArray();

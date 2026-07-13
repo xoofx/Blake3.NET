@@ -1,4 +1,6 @@
-﻿using System;
+extern alias ManagedBlake3;
+
+using System;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
@@ -6,6 +8,8 @@ using BenchmarkDotNet.Exporters.Json;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using Blake2Fast;
+using ManagedHash = ManagedBlake3::Blake3.Hash;
+using ManagedHasher = ManagedBlake3::Blake3.Hasher;
 
 namespace Blake3.Benchmarks
 {
@@ -39,15 +43,15 @@ namespace Blake3.Benchmarks
         }
 
         [Benchmark(Description = "Blake3 managed")]
-        public Hash RunBlake3Managed()
+        public ManagedHash RunBlake3Managed()
         {
-            return Hasher2.Hash(_data);
+            return ManagedHasher.Hash(_data);
         }
 
         [Benchmark(Description = "Blake3 managed parallel")]
-        public Hash RunBlake3ManagedParallel()
+        public ManagedHash RunBlake3ManagedParallel()
         {
-            using var hasher = Hasher2.New();
+            using var hasher = ManagedHasher.New();
             hasher.UpdateWithJoin(_data);
             return hasher.Finalize();
         }

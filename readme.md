@@ -1,4 +1,4 @@
-# Blake3<font color="A80016">.NET</span> [![managed](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml) [![native](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml) [![NuGet](https://img.shields.io/nuget/v/Blake3.svg)](https://www.nuget.org/packages/Blake3/)
+# Blake3<font color="A80016">.NET</span> [![managed](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml) [![native](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml) [![NuGet](https://img.shields.io/nuget/v/Blake3.svg)](https://www.nuget.org/packages/Blake3/) [![NuGet Managed](https://img.shields.io/nuget/v/Blake3.Managed.svg)](https://www.nuget.org/packages/Blake3.Managed/)
 
 <img align="right" width="160px" height="160px" src="img/logo.png">
 
@@ -8,14 +8,30 @@ Blake3.NET provides both a fast managed wrapper around the SIMD Rust implementat
 
 ## Features
 
-- Compatible with .NET8.0+.
-- Fast interop with `Span` friendly API.
+- Compatible with .NET 10.
+- `Span`-friendly API with either a native or fully managed implementation.
 - API similar to the [Blake3 Rust API](https://docs.rs/blake3/1.4.1/blake3/).
 - CPU SIMD Hardware accelerated with dynamic CPU feature detection.
   - Multiple [platforms](#platforms) supported.
 - Incremental update API via `Hasher`.
-- Fully managed regular, keyed, derive-key, incremental, and XOF hashing via `Hasher2` on .NET 10.
-- Support for multi-threaded hashing via `Hasher.UpdateWithJoin` and `Hasher2.UpdateWithJoin`.
+- Fully managed regular, keyed, derive-key, incremental, and XOF hashing in the `Blake3.Managed` package.
+- Support for multi-threaded hashing via `Hasher.UpdateWithJoin` in both packages.
+
+## Packages
+
+Choose one of the two packages. Both expose the same hashing API and type names in the `Blake3`
+namespace, including `Blake3.Hasher`, `Blake3.Hash`, `Blake3HashAlgorithm`, and `Blake3Stream`:
+
+```console
+dotnet add package Blake3
+# or, for a fully managed implementation with no native library:
+dotnet add package Blake3.Managed
+```
+
+The `Blake3` package uses the optimized Rust implementation through native interop. The
+`Blake3.Managed` package uses runtime-selected scalar and 128/256/512-bit SIMD code implemented
+entirely in .NET. Switching packages does not require source changes. A project should normally
+reference only one package because both intentionally define the same fully qualified public types.
 
 ## Usage
 
@@ -27,27 +43,17 @@ Console.WriteLine(hash);
 // Prints f890484173e516bfd935ef3d22b912dc9738de38743993cfedf2c9473b3216a4
 ```
 
-Or use the `Hasher` struct for incremental updates:
+Or use the disposable `Hasher` type for incremental updates:
 
 ```c#
-// Hasher is a disposable struct!
 using var hasher = Blake3.Hasher.New();
 hasher.Update(Encoding.UTF8.GetBytes("BLAKE3"));
 var hash = hasher.Finalize();
 ```
 
-Use `Hasher2` when a native dependency is undesirable. It has the same hashing, keyed/derive-key,
-incremental, reset, and seekable XOF surface used in the examples above:
-
-```csharp
-using var hasher = Blake3.Hasher2.New();
-hasher.Update(Encoding.UTF8.GetBytes("BLAKE3"));
-var hash = hasher.Finalize();
-```
-
-`Hasher2.UpdateWithJoin` hashes large aligned subtrees in parallel and preserves the exact incremental
-semantics of `Update`; smaller inputs stay on the serial path to avoid scheduling overhead. The managed
-implementation uses runtime-selected scalar and 128/256/512-bit SIMD paths where available.
+With `Blake3.Managed`, `Hasher.UpdateWithJoin` hashes large aligned subtrees in parallel and preserves
+the exact incremental semantics of `Update`; smaller inputs stay on the serial path to avoid scheduling
+overhead.
 
 Or seek in the output "stream" to any position:
 
@@ -55,7 +61,7 @@ Or seek in the output "stream" to any position:
 using var hasher = Blake3.Hasher.New();
 hasher.Update(Encoding.UTF8.GetBytes("BLAKE3"));
 var hashAtPosition = new byte[1024];
-var hash = hasher.Finalize(4242, hashAtPosition);
+hasher.Finalize(4242, hashAtPosition);
 ```
 
 Or hash a stream on the go with `Blake3Stream`:
@@ -87,11 +93,14 @@ byte[] subkey = derivedKey.AsSpan().ToArray();
 
 ## Platforms
 
-Blake3.NET is supported on the following platforms:
+The native `Blake3` package is supported on the following platforms:
 
 - `win-x64`, `win-x86`, `win-arm64`, `win-arm`
 - `linux-x64`, `linux-arm64`, `linux-arm`, `linux-musl-x64`, `linux-musl-arm64`
 - `osx-x64`, `osx-arm64`
+
+The `Blake3.Managed` package has no native runtime dependency and can run on any platform supported by
+.NET 10. Hardware intrinsics are selected at runtime, with a scalar fallback when SIMD is unavailable.
 
 ## Benchmarks
 
