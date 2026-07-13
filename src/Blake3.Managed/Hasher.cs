@@ -65,9 +65,9 @@ public sealed class Hasher : IDisposable
             return hash;
         }
 
-        using var hasher = New();
-        hasher.Update(input);
-        return hasher.Finalize();
+        var result = new Hash();
+        Blake3ManagedCore.HashAllAtOnce(input, result.AsSpan());
+        return result;
     }
 
     /// <summary>
@@ -83,9 +83,7 @@ public sealed class Hasher : IDisposable
             return;
         }
 
-        using var hasher = New();
-        hasher.Update(input);
-        hasher.Finalize(output);
+        Blake3ManagedCore.HashAllAtOnce(input, output);
     }
 
     /// <summary>

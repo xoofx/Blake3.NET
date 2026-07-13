@@ -145,6 +145,145 @@ internal static class Blake3ManagedCore
         }
     }
 
+    /// <summary>
+    /// Hashes a multi-chunk input while preserving a SIMD-width frontier of chaining values.
+    /// </summary>
+    [SkipLocalsInit]
+    internal static void HashAllAtOnce(ReadOnlySpan<byte> input, Span<byte> output)
+    {
+        if (input.Length <= ChunkLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(input));
+        }
+
+        Span<uint> chainingValues = stackalloc uint[16 * 8];
+        var chainingValueCount = CompressSubtreeWide(input, InitializationVector, 0, 0, chainingValues);
+        while (chainingValueCount > 2)
+        {
+            chainingValueCount = CompressParentsParallel(
+                chainingValues,
+                chainingValueCount,
+                InitializationVector,
+                0);
+        }
+
+        Span<uint> outputWords = stackalloc uint[16];
+        Span<byte> outputBlock = stackalloc byte[BlockLength];
+        ulong outputBlockCounter = 0;
+        while (!output.IsEmpty)
+        {
+            Compress(
+                InitializationVector,
+                chainingValues[..16],
+                outputBlockCounter,
+                BlockLength,
+                Parent | Root,
+                outputWords);
+            WordsToBytes(outputWords, outputBlock);
+            var take = Math.Min(output.Length, outputBlock.Length);
+            outputBlock[..take].CopyTo(output);
+            output = output[take..];
+            outputBlockCounter = unchecked(outputBlockCounter + 1);
+        }
+    }
+
+    [SkipLocalsInit]
+    private static int CompressSubtreeWide(
+        ReadOnlySpan<byte> input,
+        ReadOnlySpan<uint> keyWords,
+        ulong chunkCounter,
+        uint flags,
+        Span<uint> output)
+    {
+        var simdDegree = SimdChunkDegree;
+        if (input.Length <= simdDegree * ChunkLength)
+        {
+            return CompressChunksParallel(input, keyWords, chunkCounter, flags, output);
+        }
+
+        var leftLength = LeftSubtreeLength(input.Length);
+        var degree = Math.Max(simdDegree, 2);
+        Span<uint> childChainingValues = stackalloc uint[2 * 16 * 8];
+        var leftOutput = childChainingValues[..(degree * 8)];
+        var rightOutput = childChainingValues.Slice(degree * 8, degree * 8);
+        var leftCount = CompressSubtreeWide(
+            input[..leftLength],
+            keyWords,
+            chunkCounter,
+            flags,
+            leftOutput);
+        var rightCount = CompressSubtreeWide(
+            input[leftLength..],
+            keyWords,
+            chunkCounter + (ulong)(leftLength / ChunkLength),
+            flags,
+            rightOutput);
+
+        if (leftCount == 1)
+        {
+            leftOutput[..8].CopyTo(output);
+            rightOutput[..8].CopyTo(output[8..]);
+            return 2;
+        }
+
+        var childCount = leftCount + rightCount;
+        var outputCount = CompressParentsParallel(childChainingValues, childCount, keyWords, flags);
+        childChainingValues[..(outputCount * 8)].CopyTo(output);
+        return outputCount;
+    }
+
+    [SkipLocalsInit]
+    private static int CompressChunksParallel(
+        ReadOnlySpan<byte> input,
+        ReadOnlySpan<uint> keyWords,
+        ulong chunkCounter,
+        uint flags,
+        Span<uint> output)
+    {
+        var completeChunkCount = input.Length / ChunkLength;
+        var chunkCount = (input.Length + ChunkLength - 1) / ChunkLength;
+        var hashedChunkCount = 0;
+
+        if (completeChunkCount == 16 &&
+            TryHash16Chunks(input, keyWords, chunkCounter, flags, output))
+        {
+            hashedChunkCount = 16;
+        }
+        else if (completeChunkCount >= Vector<uint>.Count)
+        {
+            hashedChunkCount = TryHashVectorChunks(input, keyWords, chunkCounter, flags, output);
+        }
+
+        for (var chunk = hashedChunkCount; chunk < completeChunkCount; chunk++)
+        {
+            HashChunkChainingValue(
+                input.Slice(chunk * ChunkLength, ChunkLength),
+                keyWords,
+                chunkCounter + (ulong)chunk,
+                flags,
+                output.Slice(chunk * 8, 8));
+        }
+
+        if (completeChunkCount != chunkCount)
+        {
+            HashChunkChainingValue(
+                input[(completeChunkCount * ChunkLength)..],
+                keyWords,
+                chunkCounter + (ulong)completeChunkCount,
+                flags,
+                output.Slice(completeChunkCount * 8, 8));
+        }
+
+        return chunkCount;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int LeftSubtreeLength(int inputLength)
+    {
+        var halfLength = (uint)(((long)inputLength + 1) / 2);
+        return (int)BitOperations.RoundUpToPowerOf2(halfLength);
+    }
+
     [SkipLocalsInit]
     internal static void HashChunkGroup(
         ReadOnlySpan<byte> input,
@@ -196,26 +335,35 @@ internal static class Blake3ManagedCore
         Span<uint> blockWords = stackalloc uint[16];
         Span<uint> compressionOutput = stackalloc uint[16];
         keyWords.CopyTo(chainingValue);
+        var blocksCompressed = 0;
 
-        for (var block = 0; block < ChunkLength / BlockLength; block++)
+        while (input.Length > BlockLength)
         {
-            BytesToWords(input.Slice(block * BlockLength, BlockLength), blockWords);
+            BytesToWords(input[..BlockLength], blockWords);
             var blockFlags = flags;
-            if (block == 0)
+            if (blocksCompressed == 0)
             {
                 blockFlags |= ChunkStart;
             }
 
-            if (block == (ChunkLength / BlockLength) - 1)
-            {
-                blockFlags |= ChunkEnd;
-            }
-
             Compress(chainingValue, blockWords, chunkCounter, BlockLength, blockFlags, compressionOutput);
             compressionOutput[..8].CopyTo(chainingValue);
+            blocksCompressed++;
+            input = input[BlockLength..];
         }
 
-        chainingValue.CopyTo(output);
+        Span<byte> finalBlock = stackalloc byte[BlockLength];
+        finalBlock.Clear();
+        input.CopyTo(finalBlock);
+        BytesToWords(finalBlock, blockWords);
+        var finalFlags = flags | ChunkEnd;
+        if (blocksCompressed == 0)
+        {
+            finalFlags |= ChunkStart;
+        }
+
+        Compress(chainingValue, blockWords, chunkCounter, (uint)input.Length, finalFlags, compressionOutput);
+        compressionOutput[..8].CopyTo(output);
     }
 
     [SkipLocalsInit]
@@ -950,6 +1098,94 @@ internal static class Blake3ManagedCore
                 childChainingValues[(lane * 8) + word] = transposedOutput[(word * degree) + lane];
             }
         }
+    }
+
+    [SkipLocalsInit]
+    private static int CompressParentsParallel(
+        Span<uint> childChainingValues,
+        int childCount,
+        ReadOnlySpan<uint> keyWords,
+        uint flags)
+    {
+        var parentCount = childCount / 2;
+        if (parentCount < 9 || !TryCompress16Parents(childChainingValues, parentCount, keyWords, flags))
+        {
+            if (parentCount >= 2 &&
+                Vector.IsHardwareAccelerated &&
+                Vector<uint>.Count is 4 or 8 &&
+                parentCount <= Vector<uint>.Count)
+            {
+                CompressParentsVector(childChainingValues, parentCount, keyWords, flags);
+            }
+            else
+            {
+                CompressParentsScalar(childChainingValues, parentCount, keyWords, flags);
+            }
+        }
+
+        if ((childCount & 1) != 0)
+        {
+            childChainingValues.Slice((childCount - 1) * 8, 8)
+                .CopyTo(childChainingValues.Slice(parentCount * 8, 8));
+            parentCount++;
+        }
+
+        return parentCount;
+    }
+
+    [SkipLocalsInit]
+    private static bool TryCompress16Parents(
+        Span<uint> childChainingValues,
+        int parentCount,
+        ReadOnlySpan<uint> keyWords,
+        uint flags)
+    {
+        const int Degree = 16;
+        if (!Avx512F.IsSupported || parentCount is < 1 or > Degree)
+        {
+            return false;
+        }
+
+        Span<Vector512<uint>> chainingValues = stackalloc Vector512<uint>[8];
+        Span<Vector512<uint>> message = stackalloc Vector512<uint>[16];
+        ref var chainingValue = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(chainingValues);
+        ref var messageWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(message);
+        ref var childWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(childChainingValues);
+        for (var word = 0; word < chainingValues.Length; word++)
+        {
+            chainingValues[word] = Vector512.Create(keyWords[word]);
+        }
+
+        for (var parent = 0; parent < parentCount; parent++)
+        {
+            Unsafe.Add(ref messageWord, parent) =
+                Vector512.LoadUnsafe(ref childWord, (nuint)(parent * 16));
+        }
+
+        message[parentCount..].Clear();
+        Transpose16(ref messageWord);
+        var zero = Vector512<uint>.Zero;
+        Compress16(ref chainingValue, ref messageWord, in zero, in zero, flags | Parent);
+
+        messageWord = chainingValue;
+        Unsafe.Add(ref messageWord, 1) = Unsafe.Add(ref chainingValue, 1);
+        Unsafe.Add(ref messageWord, 2) = Unsafe.Add(ref chainingValue, 2);
+        Unsafe.Add(ref messageWord, 3) = Unsafe.Add(ref chainingValue, 3);
+        Unsafe.Add(ref messageWord, 4) = Unsafe.Add(ref chainingValue, 4);
+        Unsafe.Add(ref messageWord, 5) = Unsafe.Add(ref chainingValue, 5);
+        Unsafe.Add(ref messageWord, 6) = Unsafe.Add(ref chainingValue, 6);
+        Unsafe.Add(ref messageWord, 7) = Unsafe.Add(ref chainingValue, 7);
+        message[8..].Clear();
+        Transpose16(ref messageWord);
+
+        ref var outputWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(childChainingValues);
+        for (var parent = 0; parent < parentCount; parent++)
+        {
+            Unsafe.Add(ref messageWord, parent).GetLower()
+                .StoreUnsafe(ref outputWord, (nuint)(parent * 8));
+        }
+
+        return true;
     }
 
     [SkipLocalsInit]

@@ -100,6 +100,29 @@ public class ManagedHasherTests
         AssertManagedHashEqualsNative(ManagedHasher.Hash(input), Hasher.Hash(input));
     }
 
+    [TestCase(32767)]
+    [TestCase(32768)]
+    [TestCase(32769)]
+    [TestCase(65535)]
+    [TestCase(65536)]
+    [TestCase(65537)]
+    [TestCase(1000000)]
+    public void OneShotWideSubtreesMatchNative(int length)
+    {
+        var input = CreateVectorInput(length);
+        var nativeOutput = new byte[131];
+        var managedOutput = new byte[131];
+
+        Hasher.Hash(input, nativeOutput);
+        ManagedHasher.Hash(input, managedOutput);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(managedOutput, Is.EqualTo(nativeOutput));
+            AssertManagedHashEqualsNative(ManagedHasher.Hash(input), Hasher.Hash(input));
+        });
+    }
+
     [TestCaseSource(nameof(BoundaryLengths))]
     public void FragmentedUpdatesMatchNative(int length)
     {
