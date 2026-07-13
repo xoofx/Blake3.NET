@@ -1,5 +1,9 @@
 ﻿using System;
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Diagnosers;
+using BenchmarkDotNet.Exporters.Json;
+using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using Blake2Fast;
 
@@ -36,22 +40,32 @@ namespace Blake3.Benchmarks
             }
         }
 
-        [Benchmark(Description = "Blake2Fast")]
-        public void RunBlake2Fast()
-        {
-            Blake2b.ComputeHash(_data);
-        }
+        //[Benchmark(Description = "Blake2Fast")]
+        //public void RunBlake2Fast()
+        //{
+        //    Blake2b.ComputeHash(_data);
+        //}
 
-        [Benchmark(Description = "SHA256")]
-        public unsafe void RunSHA256()
-        {
-            Span<byte> data = stackalloc byte[32];
-            System.Security.Cryptography.SHA256.HashData(_data.AsSpan(), data);
-        }
+        //[Benchmark(Description = "SHA256")]
+        //public unsafe void RunSHA256()
+        //{
+        //    Span<byte> data = stackalloc byte[32];
+        //    System.Security.Cryptography.SHA256.HashData(_data.AsSpan(), data);
+        //}
 
         static void Main(string[] args)
         {
-            BenchmarkRunner.Run<Program>();
+            var config = ManualConfig.Create(DefaultConfig.Instance)
+                .AddJob(Job.ShortRun) // 3 warmup + 3 iterations, fast feedback loop for AI iteration
+                .AddDiagnoser(MemoryDiagnoser.Default)
+                .AddDiagnoser(new DisassemblyDiagnoser(new DisassemblyDiagnoserConfig(
+                    maxDepth: 3,
+                    printSource: true,
+                    exportGithubMarkdown: true,
+                    exportCombinedDisassemblyReport: true)))
+                .AddExporter(JsonExporter.Full);
+
+            BenchmarkRunner.Run<Program>(config, args);
         }
     }
 }
