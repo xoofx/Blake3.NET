@@ -37,3 +37,7 @@ DOTNET_EnableHWIntrinsic = "0"
 [github]
 user = "xoofx"
 repo = "Blake3.NET"
+
+[nuget]
+user = "xoofx"
+trusted_publishing = true
