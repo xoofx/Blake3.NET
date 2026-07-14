@@ -1,6 +1,6 @@
 # Blake3<span color="A80016">.NET</span> [![managed](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml) [![native](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml) [![NuGet](https://img.shields.io/nuget/v/Blake3.svg)](https://www.nuget.org/packages/Blake3/) [![NuGet Native](https://img.shields.io/nuget/v/Blake3.Native.svg)](https://www.nuget.org/packages/Blake3.Native/)
 
-<img align="right" width="160px" height="160px" src="img/logo.png">
+<img align="right" width="160px" height="160px" src="img/logo.svg" alt="Blake3.NET logo">
 
 Blake3.NET provides two fast, SIMD-accelerated implementations of the
 [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) cryptographic hash function: the fully managed
