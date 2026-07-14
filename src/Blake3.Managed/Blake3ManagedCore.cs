@@ -103,21 +103,29 @@ internal static class Blake3ManagedCore
 
         Span<uint> chainingValue = stackalloc uint[8];
         Span<uint> blockWords = stackalloc uint[16];
-        Span<uint> compressionOutput = stackalloc uint[16];
         InitializationVector.CopyTo(chainingValue);
         var blocksCompressed = 0;
 
         while (input.Length > BlockLength)
         {
-            BytesToWords(input[..BlockLength], blockWords);
-            Compress(
-                chainingValue,
-                blockWords,
-                0,
-                BlockLength,
-                blocksCompressed == 0 ? ChunkStart : 0,
-                compressionOutput);
-            compressionOutput[..8].CopyTo(chainingValue);
+            var blockFlags = blocksCompressed == 0 ? ChunkStart : 0;
+            if (Sse41.IsSupported)
+            {
+                // x86 is little-endian, so complete blocks can be loaded directly without staging words.
+                Compress(
+                    chainingValue,
+                    System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(input[..BlockLength]),
+                    0,
+                    BlockLength,
+                    blockFlags,
+                    chainingValue);
+            }
+            else
+            {
+                BytesToWords(input[..BlockLength], blockWords);
+                Compress(chainingValue, blockWords, 0, BlockLength, blockFlags, chainingValue);
+            }
+
             blocksCompressed++;
             input = input[BlockLength..];
         }
@@ -132,6 +140,14 @@ internal static class Blake3ManagedCore
             flags |= ChunkStart;
         }
 
+        if (output.Length == OutputLength)
+        {
+            Compress(chainingValue, blockWords, 0, (uint)input.Length, flags, chainingValue);
+            WordsToBytes(chainingValue, output);
+            return;
+        }
+
+        Span<uint> compressionOutput = stackalloc uint[16];
         Span<byte> outputBlock = stackalloc byte[BlockLength];
         ulong outputCounter = 0;
         while (!output.IsEmpty)
@@ -393,7 +409,10 @@ internal static class Blake3ManagedCore
         for (var index = 0; index < 8; index++)
         {
             output[index] = state[index] ^ state[index + 8];
-            output[index + 8] = state[index + 8] ^ chainingValue[index];
+            if (output.Length >= 16)
+            {
+                output[index + 8] = state[index + 8] ^ chainingValue[index];
+            }
         }
     }
 
@@ -406,6 +425,12 @@ internal static class Blake3ManagedCore
         uint flags,
         Span<uint> output)
     {
+        if (Sse41.IsSupported)
+        {
+            CompressSse41(chainingValue, blockWords, counter, blockLength, flags, output);
+            return;
+        }
+
         var row0 = Vector128.Create(chainingValue[0], chainingValue[1], chainingValue[2], chainingValue[3]);
         var row1 = Vector128.Create(chainingValue[4], chainingValue[5], chainingValue[6], chainingValue[7]);
         var row2 = Vector128.Create(0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au);
@@ -438,8 +463,130 @@ internal static class Blake3ManagedCore
 
         (row0 ^ row2).CopyTo(output);
         (row1 ^ row3).CopyTo(output[4..]);
-        (row2 ^ Vector128.Create(chainingValue[0], chainingValue[1], chainingValue[2], chainingValue[3])).CopyTo(output[8..]);
-        (row3 ^ Vector128.Create(chainingValue[4], chainingValue[5], chainingValue[6], chainingValue[7])).CopyTo(output[12..]);
+        if (output.Length >= 16)
+        {
+            (row2 ^ Vector128.Create(chainingValue[0], chainingValue[1], chainingValue[2], chainingValue[3])).CopyTo(output[8..]);
+            (row3 ^ Vector128.Create(chainingValue[4], chainingValue[5], chainingValue[6], chainingValue[7])).CopyTo(output[12..]);
+        }
+    }
+
+    [SkipLocalsInit]
+    private static void CompressSse41(
+        ReadOnlySpan<uint> chainingValue,
+        ReadOnlySpan<uint> blockWords,
+        ulong counter,
+        uint blockLength,
+        uint flags,
+        Span<uint> output)
+    {
+        ref var chainingValueWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(chainingValue);
+        ref var blockWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(blockWords);
+        var initialRow0 = Vector128.LoadUnsafe(ref chainingValueWord);
+        var initialRow1 = Vector128.LoadUnsafe(ref chainingValueWord, 4);
+        var row0 = initialRow0;
+        var row1 = initialRow1;
+        var row2 = Vector128.Create(0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au);
+        var row3 = Vector128.Create((uint)counter, (uint)(counter >> 32), blockLength, flags);
+        var message0 = Vector128.LoadUnsafe(ref blockWord);
+        var message1 = Vector128.LoadUnsafe(ref blockWord, 4);
+        var message2 = Vector128.LoadUnsafe(ref blockWord, 8);
+        var message3 = Vector128.LoadUnsafe(ref blockWord, 12);
+
+        var permuted0 = Sse.Shuffle(message0.AsSingle(), message1.AsSingle(), 0x88).AsUInt32();
+        var permuted1 = Sse.Shuffle(message0.AsSingle(), message1.AsSingle(), 0xDD).AsUInt32();
+        Mix(ref row0, ref row1, ref row2, ref row3, permuted0, permuted1);
+        DiagonalizeSse41(ref row0, ref row2, ref row3);
+        var permuted2 = Sse2.Shuffle(
+            Sse.Shuffle(message2.AsSingle(), message3.AsSingle(), 0x88).AsUInt32(),
+            0x93);
+        var permuted3 = Sse2.Shuffle(
+            Sse.Shuffle(message2.AsSingle(), message3.AsSingle(), 0xDD).AsUInt32(),
+            0x93);
+        Mix(ref row0, ref row1, ref row2, ref row3, permuted2, permuted3);
+        UndiagonalizeSse41(ref row0, ref row2, ref row3);
+        message0 = permuted0;
+        message1 = permuted1;
+        message2 = permuted2;
+        message3 = permuted3;
+
+        for (var round = 1; round < 7; round++)
+        {
+            PermuteMessageAndRoundSse41(
+                ref row0,
+                ref row1,
+                ref row2,
+                ref row3,
+                ref message0,
+                ref message1,
+                ref message2,
+                ref message3);
+        }
+
+        ref var outputWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(output);
+        (row0 ^ row2).StoreUnsafe(ref outputWord);
+        (row1 ^ row3).StoreUnsafe(ref outputWord, 4);
+        if (output.Length >= 16)
+        {
+            (row2 ^ initialRow0).StoreUnsafe(ref outputWord, 8);
+            (row3 ^ initialRow1).StoreUnsafe(ref outputWord, 12);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PermuteMessageAndRoundSse41(
+        ref Vector128<uint> row0,
+        ref Vector128<uint> row1,
+        ref Vector128<uint> row2,
+        ref Vector128<uint> row3,
+        ref Vector128<uint> message0,
+        ref Vector128<uint> message1,
+        ref Vector128<uint> message2,
+        ref Vector128<uint> message3)
+    {
+        var permuted0 = Sse2.Shuffle(
+            Sse.Shuffle(message0.AsSingle(), message1.AsSingle(), 0xD6).AsUInt32(),
+            0x39);
+        var permuted1 = Sse.Shuffle(message2.AsSingle(), message3.AsSingle(), 0xFA).AsUInt32();
+        var temporary = Sse2.Shuffle(message0, 0x0F);
+        permuted1 = Sse41.Blend(temporary.AsInt16(), permuted1.AsInt16(), 0xCC).AsUInt32();
+        Mix(ref row0, ref row1, ref row2, ref row3, permuted0, permuted1);
+        DiagonalizeSse41(ref row0, ref row2, ref row3);
+
+        var permuted2 = Sse2.UnpackLow(message3.AsUInt64(), message1.AsUInt64()).AsUInt32();
+        temporary = Sse41.Blend(permuted2.AsInt16(), message2.AsInt16(), 0xC0).AsUInt32();
+        permuted2 = Sse2.Shuffle(temporary, 0x78);
+        var permuted3 = Sse2.UnpackHigh(message1, message3);
+        temporary = Sse2.UnpackLow(message2, permuted3);
+        permuted3 = Sse2.Shuffle(temporary, 0x1E);
+        Mix(ref row0, ref row1, ref row2, ref row3, permuted2, permuted3);
+        UndiagonalizeSse41(ref row0, ref row2, ref row3);
+
+        message0 = permuted0;
+        message1 = permuted1;
+        message2 = permuted2;
+        message3 = permuted3;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void DiagonalizeSse41(
+        ref Vector128<uint> row0,
+        ref Vector128<uint> row2,
+        ref Vector128<uint> row3)
+    {
+        row0 = Sse2.Shuffle(row0, 0x93);
+        row3 = Sse2.Shuffle(row3, 0x4E);
+        row2 = Sse2.Shuffle(row2, 0x39);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void UndiagonalizeSse41(
+        ref Vector128<uint> row0,
+        ref Vector128<uint> row2,
+        ref Vector128<uint> row3)
+    {
+        row0 = Sse2.Shuffle(row0, 0x39);
+        row3 = Sse2.Shuffle(row3, 0x4E);
+        row2 = Sse2.Shuffle(row2, 0x93);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
