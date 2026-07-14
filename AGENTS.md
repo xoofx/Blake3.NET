@@ -1,12 +1,15 @@
 # Blake3 — Codex Agent Instructions
 
-Blake3.NET is a fast managed wrapper around the SIMD Rust implementations of the [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) cryptographic hash function.
+Blake3.NET provides two fast, SIMD-accelerated implementations of the
+[BLAKE3](https://github.com/BLAKE3-team/BLAKE3) cryptographic hash function: the fully managed
+`Blake3` package and the native `Blake3.Native` package, which wraps the official Rust implementation.
 
 Paths/commands below are relative to this directory.
 
 ## Orientation
 
-- Library: `src/Blake3/`
+- Managed Library: `src/Blake3/`
+- Native Library: `src/Blake3.Native/`
 - Benchmarks: `src/Blake3.Benchmarks/`
 - Tests: `src/Blake3.Tests/` (MSTest)
 - Docs to keep in sync with behavior: `readme.md` and the docs under `doc/` (e.g., `doc/**/*.md`)
