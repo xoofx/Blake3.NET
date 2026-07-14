@@ -1,4 +1,4 @@
-extern alias ManagedBlake3;
+extern alias NativeBlake3;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
@@ -9,7 +9,7 @@ using Blake2Fast;
 using CommandLine;
 using System;
 using System.Runtime.InteropServices;
-using SharpHasher = ManagedBlake3::Blake3.Hasher;
+using NativeHasher = NativeBlake3::Blake3.Hasher;
 using ManagedHasher = Blake3.Managed.Hasher;
 
 namespace Blake3.Benchmarks
@@ -29,35 +29,35 @@ namespace Blake3.Benchmarks
             new Random(42).NextBytes(_data);
         }
 
-        [Benchmark(Baseline = true, Description = "Blake3 native")]
-        public uint RunBlake3Native()
+        [Benchmark(Baseline = true, Description = "Blake3 default")]
+        public uint RunBlake3()
         {
             return MemoryMarshal.Cast<byte, uint>(Hasher.Hash(_data).AsSpan())[0];
         }
 
-        [Benchmark(Description = "Blake3 native parallel")]
-        public uint RunBlake3NativeParallel()
+        [Benchmark(Description = "Blake3 parallel")]
+        public uint RunBlake3Parallel()
         {
             using var hasher = Hasher.New();
             hasher.UpdateWithJoin(_data);
             return MemoryMarshal.Cast<byte, uint>(hasher.Finalize().AsSpan())[0];
         }
 
-        [Benchmark(Description = "Blake3 sharp")]
-        public uint RunBlake3Sharp()
+        [Benchmark(Description = "Blake3 native")]
+        public uint RunBlake3Native()
         {
-            return MemoryMarshal.Cast<byte, uint>(SharpHasher.Hash(_data).AsSpan())[0];
+            return MemoryMarshal.Cast<byte, uint>(NativeHasher.Hash(_data).AsSpan())[0];
         }
 
-        [Benchmark(Description = "Blake3 sharp parallel")]
-        public uint RunBlake3SharpParallel()
+        [Benchmark(Description = "Blake3 native parallel")]
+        public uint RunBlake3NativeParallel()
         {
-            using var hasher = SharpHasher.New();
+            using var hasher = NativeHasher.New();
             hasher.UpdateWithJoin(_data);
             return MemoryMarshal.Cast<byte, uint>(hasher.Finalize().AsSpan())[0];
         }
         
-        [Benchmark(Description = "Blake3 managed")]
+        [Benchmark(Description = "Blake3 managed (ext)")]
         public uint RunBlake3Managed()
         {
             return MemoryMarshal.Cast<byte, uint>(ManagedHasher.Hash(_data).AsSpan())[0];

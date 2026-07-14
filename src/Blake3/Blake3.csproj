@@ -3,22 +3,16 @@
   <Import Project="Blake3.props" />
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
+    <Description>Blake3 is a fully managed SIMD implementation of the BLAKE3 cryptographic hash function.</Description>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!--Add support for sourcelink-->
+    <!-- Add support for Source Link. -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Content Include="runtimes\**\*">
-      <PackagePath>%(Identity)</PackagePath>
-      <Pack>true</Pack>
-    </Content>
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="MinVer">
@@ -27,22 +21,4 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup>
-    <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Update="Blake3Core.generated.cs">
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Blake3Core.generated.tt</DependentUpon>
-    </Compile>
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Blake3Core.generated.tt">
-      <Generator>TextTemplatingFileGenerator</Generator>
-      <LastGenOutput>Blake3Core.generated.cs</LastGenOutput>
-    </None>
-  </ItemGroup>
 </Project>

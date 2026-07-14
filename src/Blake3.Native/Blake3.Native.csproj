@@ -3,19 +3,27 @@
   <Import Project="..\Blake3\Blake3.props" />
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <AssemblyName>Blake3.Sharp</AssemblyName>
+    <AssemblyName>Blake3.Native</AssemblyName>
     <RootNamespace>Blake3</RootNamespace>
-    <PackageId>Blake3.Sharp</PackageId>
-    <Description>Blake3.Sharp is a fully managed SIMD implementation of the BLAKE3 cryptographic hash function.</Description>
+    <PackageId>Blake3.Native</PackageId>
+
+    <TargetFramework>net8.0</TargetFramework>
+    <Description>Blake3.Native is a managed wrapper around the Rust implementations of the BLAKE3 cryptographic hash function.</Description>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- Add support for Source Link. -->
+    <!--Add support for sourcelink-->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="runtimes\**\*">
+      <PackagePath>%(Identity)</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+  </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\Blake3\Hash.cs" Link="Hash.cs" />
@@ -29,5 +37,4 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
-
 </Project>

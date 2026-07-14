@@ -11,7 +11,7 @@
     <PackageReference Include="NUnit" />
     <PackageReference Include="NUnit3TestAdapter" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <Content Include="..\Blake3\runtimes\$(RuntimeIdentifier)\native\*.*">
+    <Content Include="..\Blake3.Native\runtimes\$(RuntimeIdentifier)\native\*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
 
@@ -24,8 +24,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Blake3\Blake3.csproj" />
-    <ProjectReference Include="..\Blake3.Sharp\Blake3.Sharp.csproj" Aliases="ManagedBlake3" />
+    <ProjectReference Include="..\Blake3\Blake3.csproj" Aliases="ManagedBlake3" />
+    <ProjectReference Include="..\Blake3.Native\Blake3.Native.csproj"  />
   </ItemGroup>
 
   <ItemGroup>

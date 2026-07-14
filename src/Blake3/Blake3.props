@@ -1,6 +1,5 @@
 <Project>
   <PropertyGroup>
-    <Description>Blake3.NET is a managed wrapper around the Rust implementations of the BLAKE3 cryptographic hash function.</Description>
     <Copyright>Alexandre Mutel</Copyright>
     <NeutralLanguage>en-US</NeutralLanguage>
     <Authors>Alexandre Mutel</Authors>

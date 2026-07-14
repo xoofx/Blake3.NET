@@ -14,14 +14,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\Blake3\runtimes\$(NETCoreSdkRuntimeIdentifier)\native\*.*">
+    <Content Include="..\Blake3.Native\runtimes\$(NETCoreSdkRuntimeIdentifier)\native\*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Blake3\Blake3.csproj" />
-    <ProjectReference Include="..\Blake3.Sharp\Blake3.Sharp.csproj" Aliases="ManagedBlake3" />
+    <ProjectReference Include="..\Blake3.Native\Blake3.Native.csproj" Aliases="NativeBlake3"/>
   </ItemGroup>
 
 </Project>
