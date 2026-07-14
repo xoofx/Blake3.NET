@@ -5,22 +5,32 @@
 These benchmarks use [BenchmarkDotNet](https://github.com/dotnet/BenchmarkDotNet/) on .NET 10
 to compare several input sizes and implementations:
 
-- `Blake3`, which calls the SIMD-optimized Rust implementation through native interop.
-- `Blake3.Sharp`, a portable .NET implementation with runtime-selected SIMD acceleration and no
-  native code dependency.
+- `Blake3` (shown as `Blake3 default`), this repository's fully managed implementation with
+  runtime-selected SIMD acceleration and no native code dependency.
+- `Blake3.Native` (shown as `Blake3 native`), this repository's wrapper around the SIMD-optimized
+  official Rust implementation.
+- [`Blake3.Managed`](https://www.nuget.org/packages/Blake3.Managed/) 1.2.1 (shown as
+  `Blake3 managed (ext)`), an independently maintained, fully managed SIMD implementation from NuGet.
 - [Blake2Fast](https://github.com/saucecontrol/Blake2Fast).
 - `System.Security.Cryptography.SHA256`.
 
-Both BLAKE3 packages are measured in serial mode and in parallel mode using `Hasher.UpdateWithJoin`.
+`Blake3` and `Blake3.Native` are each measured with their one-shot serial `Hasher.Hash` API and in
+explicit parallel mode using `Hasher.UpdateWithJoin`. The `Blake3.Managed` row calls that package's
+one-shot `Hasher.Hash` API, which may use its own internal parallelism for large inputs; it is not an
+`UpdateWithJoin` measurement.
 
 > **Highlights**
 >
-> - `Blake3.Sharp` is competitive with the native Rust implementation: across these x64 and ARM64 serial results,
->   it ranges from about **7% faster to 30% slower**. It is a compelling option when portability
->   and avoiding native binaries matter more than always getting the highest possible throughput.
+> - The fully managed `Blake3` package is competitive with `Blake3.Native`: across these x64 and
+>   ARM64 serial results, it ranges from about **10% faster to 35% slower**. It avoids shipping or
+>   loading a native library while preserving this repository's established API.
+> - `Blake3.Managed` is a separate external package, not a previous or alternate package name for
+>   this repository's managed implementation. Its large-input one-shot results may include internal
+>   parallelism and should not be treated as serial measurements.
 > - Parallel hashing has scheduling and coordination overhead, so serial hashing is preferable for
->   small inputs. Across these runs, the crossover occurs between roughly **128 KiB and 512 KiB**, and
->   parallel hashing provides its clearest gains for **multi-megabyte inputs**. As the crossover depends on the CPU,
+>   small inputs. Across these runs, explicit parallel gains begin at roughly **128 KiB to 1 MiB**,
+>   depending on the implementation and CPU, and are clearest for **multi-megabyte inputs**. As the
+>   crossover depends on the CPU,
 >   available cores, runtime, and input shape, benchmark representative data before choosing it for a
 >   hot path.
 > - Comparisons with SHA256 vary by architecture: BLAKE3 leads for large x64 inputs in this run,
