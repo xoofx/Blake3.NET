@@ -22,9 +22,17 @@ public class ManagedHasherTests
 
     private static readonly int[] BoundaryLengths =
     [
-        0, 1, 2, 3, 4, 5, 7, 8, 15, 16, 31, 32, 63, 64, 65, 100,
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 15, 16, 31, 32, 63, 64, 65, 100,
         127, 128, 129, 255, 512, 960, 1000, 1023, 1024, 1025, 2048, 2049,
-        3072, 3073, 4096, 4097, 8192, 8193, 16384, 31744, 102400,
+        3072, 3073, 4096, 4097, 5120, 5121, 6144, 6145, 7168, 7169, 8192,
+        8193, 16383, 16384, 16385, 31743, 31744, 31745, 102400,
+    ];
+
+    // Mirrors the upstream BLAKE3 test_compare_update_multiple cases through four chunks.
+    private static readonly int[] IncrementalUpdateLengths =
+    [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 63, 64, 65, 127, 128, 129,
+        1023, 1024, 1025, 2048, 2049, 3072, 3073, 4096,
     ];
 
     [Test]
@@ -151,6 +159,30 @@ public class ManagedHasherTests
         });
     }
 
+    [Test]
+    public void EveryPairOfBoundaryUpdatesMatchesNative()
+    {
+        const int OutputLength = 303;
+        foreach (var firstLength in IncrementalUpdateLengths)
+        {
+            foreach (var secondLength in IncrementalUpdateLengths)
+            {
+                var input = CreateVectorInput(firstLength + secondLength);
+                var expected = new byte[OutputLength];
+                var actual = new byte[OutputLength];
+                Hasher.Hash(input, expected);
+
+                using var managed = ManagedHasher.New();
+                managed.Update(input.AsSpan(0, firstLength));
+                managed.Update(input.AsSpan(firstLength, secondLength));
+                managed.Finalize(actual);
+
+                Assert.That(actual, Is.EqualTo(expected),
+                    $"firstLength={firstLength}, secondLength={secondLength}");
+            }
+        }
+    }
+
     [TestCase(0)]
     [TestCase(1)]
     [TestCase(64)]
@@ -212,6 +244,33 @@ public class ManagedHasherTests
         managed.Update<uint>(values);
         AssertManagedHashEqualsNative(managed.Finalize(), native.Finalize());
         Assert.That(ManagedHasher.Hash(MemoryMarshal.AsBytes(values.AsSpan())), Is.EqualTo(managed.Finalize()));
+    }
+
+    [Test]
+    public void ResetPreservesKeyedAndDeriveKeyModes()
+    {
+        var discardedInput = CreateVectorInput((3 * 1024) + 7);
+        var input = CreateVectorInput(1027);
+
+        using var nativeKeyed = Hasher.NewKeyed(VectorKey);
+        using var managedKeyed = ManagedHasher.NewKeyed(VectorKey);
+        managedKeyed.Update(discardedInput);
+        managedKeyed.Reset();
+        nativeKeyed.Update(input);
+        managedKeyed.Update(input);
+
+        using var nativeDerived = Hasher.NewDeriveKey(VectorContext);
+        using var managedDerived = ManagedHasher.NewDeriveKey(VectorContext);
+        managedDerived.Update(discardedInput);
+        managedDerived.Reset();
+        nativeDerived.Update(input);
+        managedDerived.Update(input);
+
+        Assert.Multiple(() =>
+        {
+            AssertManagedHashEqualsNative(managedKeyed.Finalize(), nativeKeyed.Finalize());
+            AssertManagedHashEqualsNative(managedDerived.Finalize(), nativeDerived.Finalize());
+        });
     }
 
     [TestCase(262143)]
@@ -324,6 +383,20 @@ public class ManagedHasherTests
         AssertManagedHashEqualsNative(managed.Finalize(), native.Finalize());
     }
 
+    [TestCase("")]
+    [TestCase("BLAKE3 managed context \u2026 \u2603 \u2014 \ud83d\udd11")]
+    [TestCase("context with unpaired surrogate \ud800")]
+    public void DeriveKeyStringContextMatchesNativeForUnicode(string context)
+    {
+        using var native = Hasher.NewDeriveKey(context);
+        using var managed = ManagedHasher.NewDeriveKey(context);
+        var input = CreateVectorInput(1025);
+        native.Update(input);
+        managed.Update(input);
+
+        AssertManagedHashEqualsNative(managed.Finalize(), native.Finalize());
+    }
+
     [Test]
     public void DisposedHasherRejectsOperations()
     {
@@ -333,19 +406,28 @@ public class ManagedHasherTests
         Assert.Multiple(() =>
         {
             Assert.Throws<ObjectDisposedException>(() => hasher.Update([1]));
+            Assert.Throws<ObjectDisposedException>(() => hasher.Update<int>([1]));
             Assert.Throws<ObjectDisposedException>(() => hasher.UpdateWithJoin([1]));
+            Assert.Throws<ObjectDisposedException>(() => hasher.UpdateWithJoin<int>([1]));
             Assert.Throws<ObjectDisposedException>(() => hasher.Finalize());
+            Assert.Throws<ObjectDisposedException>(() => hasher.Finalize(new byte[1]));
+            Assert.Throws<ObjectDisposedException>(() => hasher.Finalize(0L, new byte[1]));
+            Assert.Throws<ObjectDisposedException>(() => hasher.Finalize(0UL, new byte[1]));
             Assert.Throws<ObjectDisposedException>(() => hasher.Reset());
+            Assert.DoesNotThrow(hasher.Dispose);
         });
     }
 
     [Test]
-    public void KeyMustBeExactly32Bytes()
+    public void InvalidArgumentsAreRejected()
     {
+        using var hasher = ManagedHasher.New();
         Assert.Multiple(() =>
         {
             Assert.Throws<ArgumentOutOfRangeException>(() => ManagedHasher.NewKeyed(new byte[31]));
             Assert.Throws<ArgumentOutOfRangeException>(() => ManagedHasher.NewKeyed(new byte[33]));
+            Assert.Throws<ArgumentNullException>(() => ManagedHasher.NewDeriveKey((string)null!));
+            Assert.Throws<ArgumentOutOfRangeException>(() => hasher.Finalize(-1L, new byte[1]));
         });
     }
 

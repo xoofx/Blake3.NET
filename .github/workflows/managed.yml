@@ -11,10 +11,43 @@ on:
   pull_request:
 
 jobs:
+  test:
+    name: Test (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: Linux x64
+          os: ubuntu-latest
+          rid: linux-x64
+        - name: Linux ARM64
+          os: ubuntu-24.04-arm
+          rid: linux-arm64
+        - name: Windows x64
+          os: windows-latest
+          rid: win-x64
+        - name: Windows ARM64
+          os: windows-11-arm
+          rid: win-arm64
+        - name: macOS ARM64
+          os: macos-latest
+          rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: src/global.json
+      - name: Test
+        run: dotnet test src/Blake3.Tests/Blake3.Tests.csproj --configuration Release --runtime ${{ matrix.rid }}
+
   build:
+    needs: test
+    permissions:
+      id-token: write
+      actions: write
+      contents: write    
     runs-on: 'ubuntu-latest'
     steps:
       - name: "Build, Test, Pack and Publish"
         uses: xoofx/.github/.github/actions/dotnet-releaser-action@main
-        with:
-          NUGET_TOKEN: ${{ secrets.NUGET_TOKEN }}  
