@@ -6,6 +6,7 @@ using System;
 using System.Buffers.Binary;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
@@ -131,10 +132,18 @@ internal static partial class Blake3ManagedCore
             input = input[BlockLength..];
         }
 
-        Span<byte> finalBlock = stackalloc byte[BlockLength];
-        finalBlock.Clear();
-        input.CopyTo(finalBlock);
-        BytesToWords(finalBlock, blockWords);
+        if (BitConverter.IsLittleEndian)
+        {
+            blockWords.Clear();
+            input.CopyTo(MemoryMarshal.AsBytes(blockWords));
+        }
+        else
+        {
+            Span<byte> finalBlock = stackalloc byte[BlockLength];
+            finalBlock.Clear();
+            input.CopyTo(finalBlock);
+            BytesToWords(finalBlock, blockWords);
+        }
         var flags = ChunkEnd | Root;
         if (blocksCompressed == 0)
         {
@@ -381,10 +390,18 @@ internal static partial class Blake3ManagedCore
             input = input[BlockLength..];
         }
 
-        Span<byte> finalBlock = stackalloc byte[BlockLength];
-        finalBlock.Clear();
-        input.CopyTo(finalBlock);
-        BytesToWords(finalBlock, blockWords);
+        if (BitConverter.IsLittleEndian)
+        {
+            blockWords.Clear();
+            input.CopyTo(MemoryMarshal.AsBytes(blockWords));
+        }
+        else
+        {
+            Span<byte> finalBlock = stackalloc byte[BlockLength];
+            finalBlock.Clear();
+            input.CopyTo(finalBlock);
+            BytesToWords(finalBlock, blockWords);
+        }
         var finalFlags = flags | ChunkEnd;
         if (blocksCompressed == 0)
         {
@@ -439,7 +456,7 @@ internal static partial class Blake3ManagedCore
     {
         if (AdvSimd.Arm64.IsSupported)
         {
-            CompressArm64(chainingValue, blockWords, counter, blockLength, flags, output);
+            CompressScalarArm64(chainingValue, blockWords, counter, blockLength, flags, output);
             return;
         }
 
@@ -610,6 +627,12 @@ internal static partial class Blake3ManagedCore
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void BytesToWords(ReadOnlySpan<byte> bytes, Span<uint> words)
     {
+        if (BitConverter.IsLittleEndian)
+        {
+            MemoryMarshal.Cast<byte, uint>(bytes)[..words.Length].CopyTo(words);
+            return;
+        }
+
         for (var index = 0; index < words.Length; index++)
         {
             words[index] = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(index * sizeof(uint), sizeof(uint)));
@@ -619,6 +642,12 @@ internal static partial class Blake3ManagedCore
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void WordsToBytes(ReadOnlySpan<uint> words, Span<byte> bytes)
     {
+        if (BitConverter.IsLittleEndian)
+        {
+            MemoryMarshal.AsBytes(words).CopyTo(bytes);
+            return;
+        }
+
         for (var index = 0; index < words.Length; index++)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.Slice(index * sizeof(uint), sizeof(uint)), words[index]);

@@ -3,6 +3,7 @@
 // See license.txt file in the project root for full license information.
 
 using System;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
@@ -13,7 +14,7 @@ namespace Blake3;
 internal static partial class Blake3ManagedCore
 {
     [SkipLocalsInit]
-    private static void CompressArm64(
+    private static void CompressScalarArm64(
         ReadOnlySpan<uint> chainingValue,
         ReadOnlySpan<uint> blockWords,
         ulong counter,
@@ -22,96 +23,145 @@ internal static partial class Blake3ManagedCore
         Span<uint> output)
     {
         ref var chainingValueWord = ref MemoryMarshal.GetReference(chainingValue);
-        ref var blockWord = ref MemoryMarshal.GetReference(blockWords);
+        ref var message = ref MemoryMarshal.GetReference(blockWords);
         ref var outputWord = ref MemoryMarshal.GetReference(output);
-        var initialRow0 = Vector128.LoadUnsafe(ref chainingValueWord);
-        var initialRow1 = Vector128.LoadUnsafe(ref chainingValueWord, 4);
-        var row0 = initialRow0;
-        var row1 = initialRow1;
-        var row2 = Vector128.Create(0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au);
-        var row3 = Vector128.Create((uint)counter, (uint)(counter >> 32), blockLength, flags);
-        var message0 = Vector128.LoadUnsafe(ref blockWord);
-        var message1 = Vector128.LoadUnsafe(ref blockWord, 4);
-        var message2 = Vector128.LoadUnsafe(ref blockWord, 8);
-        var message3 = Vector128.LoadUnsafe(ref blockWord, 12);
-        var rotateRight8Mask = Vector128.Create(
-            (byte)1, 2, 3, 0, 5, 6, 7, 4, 9, 10, 11, 8, 13, 14, 15, 12);
-        var permutationMask0 = CreateWordPermutationMask(2, 6, 3, 10);
-        var permutationMask1 = CreateWordPermutationMask(7, 0, 4, 13);
-        var permutationMask2 = CreateWordPermutationMask(1, 11, 12, 5);
-        var permutationMask3 = CreateWordPermutationMask(9, 14, 15, 8);
+        var v0 = chainingValueWord;
+        var v1 = Unsafe.Add(ref chainingValueWord, 1);
+        var v2 = Unsafe.Add(ref chainingValueWord, 2);
+        var v3 = Unsafe.Add(ref chainingValueWord, 3);
+        var v4 = Unsafe.Add(ref chainingValueWord, 4);
+        var v5 = Unsafe.Add(ref chainingValueWord, 5);
+        var v6 = Unsafe.Add(ref chainingValueWord, 6);
+        var v7 = Unsafe.Add(ref chainingValueWord, 7);
+        var v8 = 0x6A09E667u;
+        var v9 = 0xBB67AE85u;
+        var v10 = 0x3C6EF372u;
+        var v11 = 0xA54FF53Au;
+        var v12 = (uint)counter;
+        var v13 = (uint)(counter >> 32);
+        var v14 = blockLength;
+        var v15 = flags;
 
-        // Keep the message in four registers. Four table lookups apply the BLAKE3
-        // permutation between rounds, avoiding the scalar schedule gathers in the portable path.
+        var schedule = MessageSchedule;
         for (var round = 0; round < 7; round++)
         {
-            var messageX = AdvSimd.Arm64.UnzipEven(message0, message1);
-            var messageY = AdvSimd.Arm64.UnzipOdd(message0, message1);
-            MixCompressArm64(ref row0, ref row1, ref row2, ref row3, messageX, messageY, rotateRight8Mask);
-
-            row1 = AdvSimd.ExtractVector128(row1, row1, 1);
-            row2 = AdvSimd.ExtractVector128(row2, row2, 2);
-            row3 = AdvSimd.ExtractVector128(row3, row3, 3);
-
-            messageX = AdvSimd.Arm64.UnzipEven(message2, message3);
-            messageY = AdvSimd.Arm64.UnzipOdd(message2, message3);
-            MixCompressArm64(ref row0, ref row1, ref row2, ref row3, messageX, messageY, rotateRight8Mask);
-
-            row1 = AdvSimd.ExtractVector128(row1, row1, 3);
-            row2 = AdvSimd.ExtractVector128(row2, row2, 2);
-            row3 = AdvSimd.ExtractVector128(row3, row3, 1);
-
-            if (round != 6)
-            {
-                var table = (message0.AsByte(), message1.AsByte(), message2.AsByte(), message3.AsByte());
-                var permuted0 = AdvSimd.Arm64.VectorTableLookup(table, permutationMask0).AsUInt32();
-                var permuted1 = AdvSimd.Arm64.VectorTableLookup(table, permutationMask1).AsUInt32();
-                var permuted2 = AdvSimd.Arm64.VectorTableLookup(table, permutationMask2).AsUInt32();
-                message3 = AdvSimd.Arm64.VectorTableLookup(table, permutationMask3).AsUInt32();
-                message0 = permuted0;
-                message1 = permuted1;
-                message2 = permuted2;
-            }
+            RoundScalarArm64(
+                ref v0, ref v1, ref v2, ref v3,
+                ref v4, ref v5, ref v6, ref v7,
+                ref v8, ref v9, ref v10, ref v11,
+                ref v12, ref v13, ref v14, ref v15,
+                ref message,
+                schedule.Slice(round * 16, 16));
         }
 
-        (row0 ^ row2).StoreUnsafe(ref outputWord);
-        (row1 ^ row3).StoreUnsafe(ref outputWord, 4);
+        outputWord = v0 ^ v8;
+        Unsafe.Add(ref outputWord, 1) = v1 ^ v9;
+        Unsafe.Add(ref outputWord, 2) = v2 ^ v10;
+        Unsafe.Add(ref outputWord, 3) = v3 ^ v11;
+        Unsafe.Add(ref outputWord, 4) = v4 ^ v12;
+        Unsafe.Add(ref outputWord, 5) = v5 ^ v13;
+        Unsafe.Add(ref outputWord, 6) = v6 ^ v14;
+        Unsafe.Add(ref outputWord, 7) = v7 ^ v15;
         if (output.Length >= 16)
         {
-            (row2 ^ initialRow0).StoreUnsafe(ref outputWord, 8);
-            (row3 ^ initialRow1).StoreUnsafe(ref outputWord, 12);
+            Unsafe.Add(ref outputWord, 8) = v8 ^ chainingValueWord;
+            Unsafe.Add(ref outputWord, 9) = v9 ^ Unsafe.Add(ref chainingValueWord, 1);
+            Unsafe.Add(ref outputWord, 10) = v10 ^ Unsafe.Add(ref chainingValueWord, 2);
+            Unsafe.Add(ref outputWord, 11) = v11 ^ Unsafe.Add(ref chainingValueWord, 3);
+            Unsafe.Add(ref outputWord, 12) = v12 ^ Unsafe.Add(ref chainingValueWord, 4);
+            Unsafe.Add(ref outputWord, 13) = v13 ^ Unsafe.Add(ref chainingValueWord, 5);
+            Unsafe.Add(ref outputWord, 14) = v14 ^ Unsafe.Add(ref chainingValueWord, 6);
+            Unsafe.Add(ref outputWord, 15) = v15 ^ Unsafe.Add(ref chainingValueWord, 7);
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void MixCompressArm64(
-        ref Vector128<uint> row0,
-        ref Vector128<uint> row1,
-        ref Vector128<uint> row2,
-        ref Vector128<uint> row3,
-        Vector128<uint> messageX,
-        Vector128<uint> messageY,
-        Vector128<byte> rotateRight8Mask)
+    private static void RoundScalarArm64(
+        ref uint v0,
+        ref uint v1,
+        ref uint v2,
+        ref uint v3,
+        ref uint v4,
+        ref uint v5,
+        ref uint v6,
+        ref uint v7,
+        ref uint v8,
+        ref uint v9,
+        ref uint v10,
+        ref uint v11,
+        ref uint v12,
+        ref uint v13,
+        ref uint v14,
+        ref uint v15,
+        ref uint message,
+        ReadOnlySpan<byte> schedule)
     {
-        row0 = row0 + row1 + messageX;
-        row3 = AdvSimd.ReverseElement16(row3 ^ row0);
-        row2 += row3;
-        var rotated = row1 ^ row2;
-        row1 = AdvSimd.ShiftRightAndInsert(AdvSimd.ShiftLeftLogical(rotated, 20), rotated, 12);
-        row0 = row0 + row1 + messageY;
-        row3 = Vector128.Shuffle((row3 ^ row0).AsByte(), rotateRight8Mask).AsUInt32();
-        row2 += row3;
-        rotated = row1 ^ row2;
-        row1 = AdvSimd.ShiftRightAndInsert(AdvSimd.ShiftLeftLogical(rotated, 25), rotated, 7);
-    }
+        v0 = v0 + v4 + Unsafe.Add(ref message, schedule[0]);
+        v1 = v1 + v5 + Unsafe.Add(ref message, schedule[2]);
+        v2 = v2 + v6 + Unsafe.Add(ref message, schedule[4]);
+        v3 = v3 + v7 + Unsafe.Add(ref message, schedule[6]);
+        v12 = BitOperations.RotateRight(v12 ^ v0, 16);
+        v13 = BitOperations.RotateRight(v13 ^ v1, 16);
+        v14 = BitOperations.RotateRight(v14 ^ v2, 16);
+        v15 = BitOperations.RotateRight(v15 ^ v3, 16);
+        v8 += v12;
+        v9 += v13;
+        v10 += v14;
+        v11 += v15;
+        v4 = BitOperations.RotateRight(v4 ^ v8, 12);
+        v5 = BitOperations.RotateRight(v5 ^ v9, 12);
+        v6 = BitOperations.RotateRight(v6 ^ v10, 12);
+        v7 = BitOperations.RotateRight(v7 ^ v11, 12);
+        v0 = v0 + v4 + Unsafe.Add(ref message, schedule[1]);
+        v1 = v1 + v5 + Unsafe.Add(ref message, schedule[3]);
+        v2 = v2 + v6 + Unsafe.Add(ref message, schedule[5]);
+        v3 = v3 + v7 + Unsafe.Add(ref message, schedule[7]);
+        v12 = BitOperations.RotateRight(v12 ^ v0, 8);
+        v13 = BitOperations.RotateRight(v13 ^ v1, 8);
+        v14 = BitOperations.RotateRight(v14 ^ v2, 8);
+        v15 = BitOperations.RotateRight(v15 ^ v3, 8);
+        v8 += v12;
+        v9 += v13;
+        v10 += v14;
+        v11 += v15;
+        v4 = BitOperations.RotateRight(v4 ^ v8, 7);
+        v5 = BitOperations.RotateRight(v5 ^ v9, 7);
+        v6 = BitOperations.RotateRight(v6 ^ v10, 7);
+        v7 = BitOperations.RotateRight(v7 ^ v11, 7);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Vector128<byte> CreateWordPermutationMask(byte word0, byte word1, byte word2, byte word3) =>
-        Vector128.Create(
-            (byte)(word0 * 4), (byte)((word0 * 4) + 1), (byte)((word0 * 4) + 2), (byte)((word0 * 4) + 3),
-            (byte)(word1 * 4), (byte)((word1 * 4) + 1), (byte)((word1 * 4) + 2), (byte)((word1 * 4) + 3),
-            (byte)(word2 * 4), (byte)((word2 * 4) + 1), (byte)((word2 * 4) + 2), (byte)((word2 * 4) + 3),
-            (byte)(word3 * 4), (byte)((word3 * 4) + 1), (byte)((word3 * 4) + 2), (byte)((word3 * 4) + 3));
+        v0 = v0 + v5 + Unsafe.Add(ref message, schedule[8]);
+        v1 = v1 + v6 + Unsafe.Add(ref message, schedule[10]);
+        v2 = v2 + v7 + Unsafe.Add(ref message, schedule[12]);
+        v3 = v3 + v4 + Unsafe.Add(ref message, schedule[14]);
+        v15 = BitOperations.RotateRight(v15 ^ v0, 16);
+        v12 = BitOperations.RotateRight(v12 ^ v1, 16);
+        v13 = BitOperations.RotateRight(v13 ^ v2, 16);
+        v14 = BitOperations.RotateRight(v14 ^ v3, 16);
+        v10 += v15;
+        v11 += v12;
+        v8 += v13;
+        v9 += v14;
+        v5 = BitOperations.RotateRight(v5 ^ v10, 12);
+        v6 = BitOperations.RotateRight(v6 ^ v11, 12);
+        v7 = BitOperations.RotateRight(v7 ^ v8, 12);
+        v4 = BitOperations.RotateRight(v4 ^ v9, 12);
+        v0 = v0 + v5 + Unsafe.Add(ref message, schedule[9]);
+        v1 = v1 + v6 + Unsafe.Add(ref message, schedule[11]);
+        v2 = v2 + v7 + Unsafe.Add(ref message, schedule[13]);
+        v3 = v3 + v4 + Unsafe.Add(ref message, schedule[15]);
+        v15 = BitOperations.RotateRight(v15 ^ v0, 8);
+        v12 = BitOperations.RotateRight(v12 ^ v1, 8);
+        v13 = BitOperations.RotateRight(v13 ^ v2, 8);
+        v14 = BitOperations.RotateRight(v14 ^ v3, 8);
+        v10 += v15;
+        v11 += v12;
+        v8 += v13;
+        v9 += v14;
+        v5 = BitOperations.RotateRight(v5 ^ v10, 7);
+        v6 = BitOperations.RotateRight(v6 ^ v11, 7);
+        v7 = BitOperations.RotateRight(v7 ^ v8, 7);
+        v4 = BitOperations.RotateRight(v4 ^ v9, 7);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void LoadAndTranspose4(
