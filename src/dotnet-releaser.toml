@@ -1,6 +1,39 @@
 # configuration file for dotnet-releaser
 [msbuild]
 project = "./Blake3.NET.slnx"
+
+[test]
+# Keep the default run to exercise the best instruction set available on the host.
+run_tests = true
+
+# Cap x86/x64 at AVX2. On other architectures this keeps the host defaults.
+[[test.runs]]
+name = "AVX2 without AVX-512"
+[test.runs.envs]
+DOTNET_EnableAVX512 = "0"
+
+# Cap x86/x64 at the 128-bit SSE4.1 path.
+[[test.runs]]
+name = "SSE4.1 without AVX"
+[test.runs.envs]
+DOTNET_EnableAVX = "0"
+
+# Exercise the cross-platform Vector128 path used by ARM64 AdvSimd. On x86/x64,
+# disabling the SSE4 group avoids the specialized SSE4.1 implementation.
+[[test.runs]]
+name = "Portable Vector128 / ARM64 AdvSimd"
+[test.runs.envs]
+DOTNET_EnableAVX = "0"
+DOTNET_EnableSSE42 = "0"
+DOTNET_EnableArm64Sve = "0"
+DOTNET_EnableArm64Sve2 = "0"
+
+# Exercise the scalar fallback on every architecture.
+[[test.runs]]
+name = "Scalar without hardware intrinsics"
+[test.runs.envs]
+DOTNET_EnableHWIntrinsic = "0"
+
 [github]
 user = "xoofx"
 repo = "Blake3.NET"
