@@ -7,6 +7,7 @@ using System.Buffers.Binary;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
 
 namespace Blake3;
@@ -109,9 +110,9 @@ internal static partial class Blake3ManagedCore
         while (input.Length > BlockLength)
         {
             var blockFlags = blocksCompressed == 0 ? ChunkStart : 0;
-            if (Sse41.IsSupported)
+            if (BitConverter.IsLittleEndian)
             {
-                // x86 is little-endian, so complete blocks can be loaded directly without staging words.
+                // Complete little-endian blocks can be loaded directly without staging words.
                 Compress(
                     chainingValue,
                     System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(input[..BlockLength]),
@@ -360,7 +361,7 @@ internal static partial class Blake3ManagedCore
                 blockFlags |= ChunkStart;
             }
 
-            if (Sse41.IsSupported)
+            if (BitConverter.IsLittleEndian)
             {
                 Compress(
                     chainingValue,
@@ -436,6 +437,12 @@ internal static partial class Blake3ManagedCore
         uint flags,
         Span<uint> output)
     {
+        if (AdvSimd.Arm64.IsSupported)
+        {
+            CompressArm64(chainingValue, blockWords, counter, blockLength, flags, output);
+            return;
+        }
+
         if (Sse41.IsSupported)
         {
             CompressSse41(chainingValue, blockWords, counter, blockLength, flags, output);
@@ -755,6 +762,11 @@ internal static partial class Blake3ManagedCore
             output.Length < degree * 8)
         {
             return 0;
+        }
+
+        if (degree == 4 && AdvSimd.Arm64.IsSupported)
+        {
+            return Hash4ChunksArm64(input, keyWords, chunkCounter, flags, output);
         }
 
         var inputWords = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(input[..(degree * ChunkLength)]);
