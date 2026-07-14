@@ -1,4 +1,4 @@
-# Blake3<font color="A80016">.NET</span> [![managed](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml) [![native](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml) [![NuGet](https://img.shields.io/nuget/v/Blake3.svg)](https://www.nuget.org/packages/Blake3/) [![NuGet Managed](https://img.shields.io/nuget/v/Blake3.Managed.svg)](https://www.nuget.org/packages/Blake3.Managed/)
+# Blake3<span color="A80016">.NET</span> [![managed](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/managed.yml) [![native](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml/badge.svg)](https://github.com/xoofx/Blake3.NET/actions/workflows/native.yml) [![NuGet](https://img.shields.io/nuget/v/Blake3.svg)](https://www.nuget.org/packages/Blake3/) [![NuGet Managed](https://img.shields.io/nuget/v/Blake3.Managed.svg)](https://www.nuget.org/packages/Blake3.Managed/)
 
 <img align="right" width="160px" height="160px" src="img/logo.png">
 
@@ -104,99 +104,122 @@ The `Blake3.Managed` package has no native runtime dependency and can run on any
 
 ## Benchmarks
 
-The benchmarks are running with [BenchmarkDotNet](https://github.com/dotnet/BenchmarkDotNet/) .NET 5.0 and done on multiple different sizes compared with the following implementations:
+These benchmarks use [BenchmarkDotNet](https://github.com/dotnet/BenchmarkDotNet/) on .NET 10
+to compare several input sizes and implementations:
 
-- Blake3.NET (Blake3 Native Version: `0.3.7`)
-- [Blake2Fast](https://github.com/saucecontrol/Blake2Fast) `2.0.0`
-- `System.Security.Cryptography.SHA256` of .NET 5.0
+- `Blake3`, which calls the SIMD-optimized Rust implementation through native interop.
+- `Blake3.Managed`, a portable .NET implementation with runtime-selected SIMD acceleration and no
+  native code dependency.
+- [Blake2Fast](https://github.com/saucecontrol/Blake2Fast).
+- `System.Security.Cryptography.SHA256`.
 
-For the 1,000,000 bytes test, Blake3 is using the multi-threading version provided by Blake3 (`Hasher.UpdateWithJoin` method).
+Both BLAKE3 packages are measured in serial mode and in parallel mode using `Hasher.UpdateWithJoin`.
 
-> **Results**
+> **Highlights**
 >
-> - In general, Blake3 is much faster than SHA256 which is depending on whether your CPU supports Intel SHA Extensions.
->   - Blake3 can be from **2x to 10x times faster** than SHA256
-> - The multi-threading version can give a significant boost if the data to hash is big enough
-> - Blake3 is usually working best on large input.
+> - `Blake3.Managed` is competitive with the native Rust implementation: across the serial results
+>   below, it ranges from about **7% faster to 30% slower**. It is a compelling option when portability
+>   and avoiding native binaries matter more than always getting the highest possible throughput.
+> - Parallel hashing has scheduling and coordination overhead, so serial hashing is preferable for
+>   small inputs. In this run, parallel hashing starts to become competitive at around **512 KiB** and
+>   provides its clearest gains for **multi-megabyte inputs**. As the crossover depends on the CPU,
+>   available cores, runtime, and input shape, benchmark representative data before choosing it for a
+>   hot path.
+> - For large inputs, both BLAKE3 implementations substantially outperform the built-in SHA256 on this
+>   machine. Relative performance will vary, especially with the CPU's SHA and SIMD capabilities.
 
-## Results
+### Results
 
-The CPU before Intel Ice Lake or AMD Zen don't have the [Intel SHA CPU extensions](https://en.wikipedia.org/wiki/Intel_SHA_extensions).
-
-In that case, **Blake3 is around 5x to 10x times faster** than the built-in SHA256.
-
-The following benchmark was ran on an Intel Core i7-4980HQ CPU 2.80GHz (Haswell):
-
-![Benchmarks](img/benchmarks.png)
-
-``` ini
-
-BenchmarkDotNet=v0.12.1, OS=Windows 10.0.18363.1139 (1909/November2018Update/19H2)
-Intel Core i7-4980HQ CPU 2.80GHz (Haswell), 1 CPU, 8 logical and 4 physical cores
-.NET Core SDK=5.0.100
-  [Host]     : .NET Core 5.0 (CoreCLR 5.0.20.51904, CoreFX 5.0.20.51904), X64 RyuJIT
-  DefaultJob : .NET Core 5.0.0 (CoreCLR 5.0.20.51904, CoreFX 5.0.20.51904), X64 RyuJIT
+The following benchmark was run on an AMD Ryzen 9 9950X:
 
 ```
-|     Method |       N |            Mean |         Error |        StdDev |          Median |
-|----------- |-------- |----------------:|--------------:|--------------:|----------------:|
-|     **Blake3** |       **4** |        **85.06 ns** |      **1.704 ns** |      **2.154 ns** |        **83.55 ns** |
-| Blake2Fast |       4 |       138.30 ns |      0.755 ns |      0.670 ns |       138.36 ns |
-|     SHA256 |       4 |       531.82 ns |      0.842 ns |      0.788 ns |       531.85 ns |
-|     **Blake3** |     **100** |       **145.12 ns** |      **2.899 ns** |      **4.064 ns** |       **142.56 ns** |
-| Blake2Fast |     100 |       153.41 ns |      3.057 ns |      4.760 ns |       150.66 ns |
-|     SHA256 |     100 |       803.32 ns |     11.420 ns |      8.916 ns |       797.37 ns |
-|     **Blake3** |    **1000** |       **999.01 ns** |     **19.658 ns** |     **26.908 ns** |       **984.60 ns** |
-| Blake2Fast |    1000 |       789.41 ns |     15.814 ns |     18.825 ns |       784.82 ns |
-|     SHA256 |    1000 |     4,489.81 ns |     84.032 ns |     78.603 ns |     4,525.27 ns |
-|     **Blake3** |   **10000** |     **4,099.92 ns** |     **49.985 ns** |     **46.756 ns** |     **4,121.94 ns** |
-| Blake2Fast |   10000 |     7,593.55 ns |    127.193 ns |    112.753 ns |     7,609.07 ns |
-|     SHA256 |   10000 |    40,799.82 ns |    769.102 ns |  1,386.850 ns |    41,460.32 ns |
-|     **Blake3** |  **100000** |    **28,491.58 ns** |    **394.692 ns** |    **369.195 ns** |    **28,498.05 ns** |
-| Blake2Fast |  100000 |    78,732.84 ns |    648.124 ns |    606.255 ns |    78,887.56 ns |
-|     SHA256 |  100000 |   408,581.45 ns |  2,359.416 ns |  2,207.000 ns |   409,059.91 ns |
-|     **Blake3** | **1000000** |   **138,481.22 ns** |  **1,300.797 ns** |  **1,216.767 ns** |   **138,460.16 ns** |
-| Blake2Fast | 1000000 |   724,092.30 ns |  6,995.547 ns |  6,543.639 ns |   720,115.33 ns |
-|     SHA256 | 1000000 | 3,699,812.03 ns | 37,739.460 ns | 35,301.514 ns | 3,678,276.17 ns |
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8655/25H2/2025Update/HudsonValley2)
+AMD Ryzen 9 9950X 4.30GHz, 1 CPU, 32 logical and 16 physical cores
+.NET SDK 10.0.301
+  [Host]   : .NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v4
 
-## Results with SHA CPU extensions
-
-If your CPU has [Intel SHA CPU extensions](https://en.wikipedia.org/wiki/Intel_SHA_extensions), then **Blake3 is on average ~2x times faster** than SHA256.
-
-The following benchmarks was ran on a AMD Ryzen 9 3900X:
-
-![Benchmarks](img/benchmarks-sha-accelerated.png)
-
-``` ini
-
-BenchmarkDotNet=v0.12.1, OS=Windows 10.0.19041.630 (2004/?/20H1)
-AMD Ryzen 9 3900X, 1 CPU, 24 logical and 12 physical cores
-.NET Core SDK=5.0.100
-  [Host]     : .NET Core 5.0 (CoreCLR 5.0.20.51904, CoreFX 5.0.20.51904), X64 RyuJIT
-  DefaultJob : .NET Core 5.0.0 (CoreCLR 5.0.20.51904, CoreFX 5.0.20.51904), X64 RyuJIT
-
-
+Job=ShortRun  IterationCount=3  LaunchCount=1 WarmupCount=3
 ```
-|     Method |       N |          Mean |        Error |       StdDev |
-|----------- |-------- |--------------:|-------------:|-------------:|
-|     **Blake3** |       **4** |      **77.86 ns** |     **0.332 ns** |     **0.310 ns** |
-| Blake2Fast |       4 |     123.57 ns |     0.939 ns |     0.879 ns |
-|     SHA256 |       4 |     244.31 ns |     1.157 ns |     1.082 ns |
-|     **Blake3** |     **100** |     **125.60 ns** |     **0.497 ns** |     **0.440 ns** |
-| Blake2Fast |     100 |     124.48 ns |     1.053 ns |     0.985 ns |
-|     SHA256 |     100 |     279.82 ns |     1.853 ns |     1.734 ns |
-|     **Blake3** |    **1000** |     **888.90 ns** |     **0.873 ns** |     **0.681 ns** |
-| Blake2Fast |    1000 |     790.85 ns |     4.364 ns |     3.645 ns |
-|     SHA256 |    1000 |     700.81 ns |     2.078 ns |     1.842 ns |
-|     **Blake3** |   **10000** |   **3,508.37 ns** |    **23.411 ns** |    **21.899 ns** |
-| Blake2Fast |   10000 |   7,569.91 ns |    40.661 ns |    38.034 ns |
-|     SHA256 |   10000 |   4,922.90 ns |    14.360 ns |    13.432 ns |
-|     **Blake3** |  **100000** |  **22,109.48 ns** |    **47.699 ns** |    **39.830 ns** |
-| Blake2Fast |  100000 |  75,937.97 ns |   223.972 ns |   209.503 ns |
-|     SHA256 |  100000 |  48,655.78 ns |   102.273 ns |    95.666 ns |
-|     **Blake3** | **1000000** | **117,936.94 ns** |   **263.454 ns** |   **246.435 ns** |
-| Blake2Fast | 1000000 | 768,752.03 ns | 1,836.783 ns | 1,718.128 ns |
-|     SHA256 | 1000000 | 485,944.26 ns | 1,326.657 ns | 1,240.956 ns |
+
+| Method                    | N        | Mean            | Error          | StdDev        | Ratio | RatioSD | Code Size | Gen0   | Allocated | Alloc Ratio |
+|-------------------------- |--------- |----------------:|---------------:|--------------:|------:|--------:|----------:|-------:|----------:|------------:|
+| 'Blake3 native'           | 4        |        75.80 ns |       2.742 ns |      0.150 ns |  1.00 |    0.00 |     355 B |      - |         - |          NA |
+| 'Blake3 native parallel'  | 4        |        96.53 ns |       2.637 ns |      0.145 ns |  1.27 |    0.00 |        NA |      - |         - |          NA |
+| 'Blake3 managed'          | 4        |        82.21 ns |      19.361 ns |      1.061 ns |  1.08 |    0.01 |   2,279 B |      - |         - |          NA |
+| 'Blake3 managed parallel' | 4        |       163.56 ns |     261.523 ns |     14.335 ns |  2.16 |    0.16 |        NA | 0.1214 |    2032 B |          NA |
+| Blake2Fast                | 4        |       137.54 ns |       8.722 ns |      0.478 ns |  1.81 |    0.01 |   5,453 B | 0.0052 |      88 B |          NA |
+| SHA256                    | 4        |       115.78 ns |     196.735 ns |     10.784 ns |  1.53 |    0.12 |     342 B |      - |         - |          NA |
+|                           |          |                 |                |               |       |         |           |        |           |             |
+| 'Blake3 native'           | 100      |       142.40 ns |      12.513 ns |      0.686 ns |  1.00 |    0.01 |     355 B |      - |         - |          NA |
+| 'Blake3 native parallel'  | 100      |       153.55 ns |      10.883 ns |      0.597 ns |  1.08 |    0.01 |        NA |      - |         - |          NA |
+| 'Blake3 managed'          | 100      |       132.32 ns |      19.674 ns |      1.078 ns |  0.93 |    0.01 |   2,272 B |      - |         - |          NA |
+| 'Blake3 managed parallel' | 100      |       234.82 ns |      67.876 ns |      3.721 ns |  1.65 |    0.02 |        NA | 0.1214 |    2032 B |          NA |
+| Blake2Fast                | 100      |       134.94 ns |      18.923 ns |      1.037 ns |  0.95 |    0.01 |   5,450 B | 0.0052 |      88 B |          NA |
+| SHA256                    | 100      |       138.56 ns |     146.566 ns |      8.034 ns |  0.97 |    0.05 |     342 B |      - |         - |          NA |
+|                           |          |                 |                |               |       |         |           |        |           |             |
+| 'Blake3 native'           | 1000     |       995.27 ns |      44.240 ns |      2.425 ns |  1.00 |    0.00 |     355 B |      - |         - |          NA |
+| 'Blake3 native parallel'  | 1000     |     1,001.95 ns |      18.530 ns |      1.016 ns |  1.01 |    0.00 |        NA |      - |         - |          NA |
+| 'Blake3 managed'          | 1000     |     1,132.57 ns |     399.877 ns |     21.919 ns |  1.14 |    0.02 |   2,272 B |      - |         - |          NA |
+| 'Blake3 managed parallel' | 1000     |     1,375.29 ns |      84.049 ns |      4.607 ns |  1.38 |    0.00 |        NA | 0.1202 |    2032 B |          NA |
+| Blake2Fast                | 1000     |       956.44 ns |     121.181 ns |      6.642 ns |  0.96 |    0.01 |   5,550 B | 0.0038 |      88 B |          NA |
+| SHA256                    | 1000     |       449.12 ns |       3.816 ns |      0.209 ns |  0.45 |    0.00 |     342 B |      - |         - |          NA |
+|                           |          |                 |                |               |       |         |           |        |           |             |
+| 'Blake3 native'           | 10000    |     3,115.34 ns |      82.487 ns |      4.521 ns |  1.00 |    0.00 |     360 B |      - |         - |          NA |
+| 'Blake3 native parallel'  | 10000    |     3,157.38 ns |      45.903 ns |      2.516 ns |  1.01 |    0.00 |        NA |      - |         - |          NA |
+| 'Blake3 managed'          | 10000    |     3,741.27 ns |     158.332 ns |      8.679 ns |  1.20 |    0.00 |   6,078 B |      - |         - |          NA |
+| 'Blake3 managed parallel' | 10000    |     4,233.85 ns |     332.888 ns |     18.247 ns |  1.36 |    0.01 |        NA | 0.1144 |    2032 B |          NA |
+| Blake2Fast                | 10000    |     9,235.58 ns |     126.637 ns |      6.941 ns |  2.96 |    0.00 |   5,549 B |      - |      88 B |          NA |
+| SHA256                    | 10000    |     3,697.00 ns |     131.098 ns |      7.186 ns |  1.19 |    0.00 |     342 B |      - |         - |          NA |
+|                           |          |                 |                |               |       |         |           |        |           |             |
+| 'Blake3 native'           | 65536    |     5,121.15 ns |     256.663 ns |     14.069 ns |  1.00 |    0.00 |     360 B |      - |         - |          NA |
+| 'Blake3 native parallel'  | 65536    |    37,223.51 ns |   1,851.871 ns |    101.507 ns |  7.27 |    0.02 |        NA |      - |         - |          NA |
+| 'Blake3 managed'          | 65536    |     6,434.91 ns |   1,125.852 ns |     61.712 ns |  1.26 |    0.01 |   6,149 B |      - |         - |          NA |
+| 'Blake3 managed parallel' | 65536    |    19,186.93 ns |   6,681.266 ns |    366.223 ns |  3.75 |    0.06 |        NA | 0.0916 |    2032 B |          NA |
+| Blake2Fast                | 65536    |    60,424.43 ns |   1,940.282 ns |    106.353 ns | 11.80 |    0.03 |   5,827 B |      - |      88 B |          NA |
+| SHA256                    | 65536    |    23,838.49 ns |   1,304.229 ns |     71.489 ns |  4.65 |    0.02 |     342 B |      - |         - |          NA |
+|                           |          |                 |                |               |       |         |           |        |           |             |
+| 'Blake3 native'           | 100000   |     9,457.37 ns |   1,126.614 ns |     61.754 ns |  1.00 |    0.01 |     360 B |      - |         - |          NA |
+| 'Blake3 native parallel'  | 100000   |    57,637.99 ns |   4,277.860 ns |    234.484 ns |  6.09 |    0.04 |        NA |      - |         - |          NA |
+| 'Blake3 managed'          | 100000   |    11,196.23 ns |   1,309.860 ns |     71.798 ns |  1.18 |    0.01 |   6,590 B |      - |         - |          NA |
+| 'Blake3 managed parallel' | 100000   |    14,199.48 ns |   7,723.410 ns |    423.346 ns |  1.50 |    0.04 |        NA | 0.1068 |    2032 B |          NA |
+| Blake2Fast                | 100000   |    92,327.04 ns |   6,859.453 ns |    375.990 ns |  9.76 |    0.07 |   5,549 B |      - |      90 B |          NA |
+| SHA256                    | 100000   |    36,375.42 ns |   1,056.754 ns |     57.924 ns |  3.85 |    0.02 |     342 B |      - |         - |          NA |
+|                           |          |                 |                |               |       |         |           |        |           |             |
+| 'Blake3 native'           | 131072   |    10,028.99 ns |   1,204.046 ns |     65.998 ns |  1.00 |    0.01 |     360 B |      - |         - |          NA |
+| 'Blake3 native parallel'  | 131072   |    68,613.48 ns |  11,945.912 ns |    654.796 ns |  6.84 |    0.07 |        NA |      - |         - |          NA |
+| 'Blake3 managed'          | 131072   |    12,303.24 ns |   1,473.063 ns |     80.744 ns |  1.23 |    0.01 |   6,156 B |      - |         - |          NA |
+| 'Blake3 managed parallel' | 131072   |    26,593.60 ns |   7,409.869 ns |    406.160 ns |  2.65 |    0.04 |        NA | 0.0916 |    2032 B |          NA |
+| Blake2Fast                | 131072   |   120,753.03 ns |   5,376.569 ns |    294.708 ns | 12.04 |    0.07 |   5,827 B |      - |      88 B |          NA |
+| SHA256                    | 131072   |    47,474.33 ns |   1,930.577 ns |    105.821 ns |  4.73 |    0.03 |     342 B |      - |         - |          NA |
+|                           |          |                 |                |               |       |         |           |        |           |             |
+| 'Blake3 native'           | 262144   |    19,990.86 ns |     914.761 ns |     50.141 ns |  1.00 |    0.00 |     360 B |      - |         - |          NA |
+| 'Blake3 native parallel'  | 262144   |    70,163.42 ns |  17,521.705 ns |    960.424 ns |  3.51 |    0.04 |        NA |      - |         - |          NA |
+| 'Blake3 managed'          | 262144   |    25,770.78 ns |   6,496.970 ns |    356.121 ns |  1.29 |    0.02 |   6,156 B |      - |         - |          NA |
+| 'Blake3 managed parallel' | 262144   |    36,703.18 ns |   4,171.513 ns |    228.655 ns |  1.84 |    0.01 |        NA | 0.2441 |    4962 B |          NA |
+| Blake2Fast                | 262144   |   242,187.71 ns |   5,911.815 ns |    324.047 ns | 12.11 |    0.03 |   5,823 B |      - |      88 B |          NA |
+| SHA256                    | 262144   |    95,353.51 ns |  10,032.142 ns |    549.896 ns |  4.77 |    0.03 |     342 B |      - |         - |          NA |
+|                           |          |                 |                |               |       |         |           |        |           |             |
+| 'Blake3 native'           | 524288   |    39,488.71 ns |   3,036.480 ns |    166.440 ns |  1.00 |    0.01 |     360 B |      - |         - |          NA |
+| 'Blake3 native parallel'  | 524288   |    17,998.78 ns |   3,137.964 ns |    172.002 ns |  0.46 |    0.00 |        NA |      - |         - |          NA |
+| 'Blake3 managed'          | 524288   |    49,525.68 ns |  11,790.143 ns |    646.257 ns |  1.25 |    0.01 |   6,156 B |      - |         - |          NA |
+| 'Blake3 managed parallel' | 524288   |    49,223.40 ns |  11,643.140 ns |    638.200 ns |  1.25 |    0.01 |        NA | 0.3662 |    6158 B |          NA |
+| Blake2Fast                | 524288   |   484,473.19 ns |  17,713.546 ns |    970.939 ns | 12.27 |    0.05 |   5,823 B |      - |      88 B |          NA |
+| SHA256                    | 524288   |   189,652.06 ns |   1,642.776 ns |     90.046 ns |  4.80 |    0.02 |     342 B |      - |         - |          NA |
+|                           |          |                 |                |               |       |         |           |        |           |             |
+| 'Blake3 native'           | 1000000  |    76,814.91 ns |   2,324.927 ns |    127.437 ns |  1.00 |    0.00 |     360 B |      - |         - |          NA |
+| 'Blake3 native parallel'  | 1000000  |   225,470.52 ns |  30,270.007 ns |  1,659.201 ns |  2.94 |    0.02 |        NA |      - |         - |          NA |
+| 'Blake3 managed'          | 1000000  |    93,914.75 ns |  13,165.180 ns |    721.628 ns |  1.22 |    0.01 |   6,612 B |      - |         - |          NA |
+| 'Blake3 managed parallel' | 1000000  |    28,859.87 ns |   2,069.081 ns |    113.413 ns |  0.38 |    0.00 |        NA | 0.5493 |    9133 B |          NA |
+| Blake2Fast                | 1000000  |   923,363.25 ns |  36,955.748 ns |  2,025.669 ns | 12.02 |    0.03 |   5,539 B |      - |      88 B |          NA |
+| SHA256                    | 1000000  |   362,081.12 ns |  13,172.901 ns |    722.051 ns |  4.71 |    0.01 |     342 B |      - |         - |          NA |
+|                           |          |                 |                |               |       |         |           |        |           |             |
+| 'Blake3 native'           | 10000000 |   773,463.20 ns |  80,683.008 ns |  4,422.508 ns |  1.00 |    0.01 |     360 B |      - |         - |          NA |
+| 'Blake3 native parallel'  | 10000000 |   120,835.40 ns |   9,464.983 ns |    518.808 ns |  0.16 |    0.00 |        NA |      - |         - |          NA |
+| 'Blake3 managed'          | 10000000 | 1,002,409.38 ns |  54,831.990 ns |  3,005.526 ns |  1.30 |    0.01 |   6,590 B |      - |         - |          NA |
+| 'Blake3 managed parallel' | 10000000 |   229,875.78 ns |   1,821.866 ns |     99.863 ns |  0.30 |    0.00 |        NA | 1.7090 |   27908 B |          NA |
+| Blake2Fast                | 10000000 | 9,296,369.53 ns | 292,683.481 ns | 16,042.969 ns | 12.02 |    0.06 |   5,829 B |      - |      88 B |          NA |
+| SHA256                    | 10000000 | 3,640,666.41 ns | 484,814.553 ns | 26,574.322 ns |  4.71 |    0.04 |     342 B |      - |         - |          NA |
 
 ## How to Build?
 
