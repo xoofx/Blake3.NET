@@ -56,18 +56,19 @@ namespace Blake3.Benchmarks
             return MemoryMarshal.Cast<byte, uint>(hasher.Finalize().AsSpan())[0];
         }
 
-        //[Benchmark(Description = "Blake2Fast")]
-        //public void RunBlake2Fast()
-        //{
-        //    Blake2b.ComputeHash(_data);
-        //}
+        [Benchmark(Description = "Blake2Fast")]
+        public uint RunBlake2Fast()
+        {
+            return MemoryMarshal.Cast<byte, uint>(Blake2b.ComputeHash(_data))[0];
+        }
 
-        //[Benchmark(Description = "SHA256")]
-        //public unsafe void RunSHA256()
-        //{
-        //    Span<byte> data = stackalloc byte[32];
-        //    System.Security.Cryptography.SHA256.HashData(_data.AsSpan(), data);
-        //}
+        [Benchmark(Description = "SHA256")]
+        public unsafe uint RunSHA256()
+        {
+            Span<byte> data = stackalloc byte[32];
+            System.Security.Cryptography.SHA256.HashData(_data.AsSpan(), data);
+            return MemoryMarshal.Cast<byte, uint>(data)[0];
+        }
 
         static void Main(string[] args)
         {
