@@ -3,6 +3,7 @@
     <File Path="../.github/workflows/managed.yml" />
     <File Path="../.github/workflows/native.yml" />
     <File Path="../AGENTS.md" />
+    <File Path="../doc/benchmarks.md" />
     <File Path="../license.txt" />
     <File Path="../readme.md" />
     <File Path="Directory.Packages.props" />
