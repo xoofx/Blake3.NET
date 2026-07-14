@@ -14,7 +14,7 @@ namespace Blake3;
 /// <summary>
 /// Portable implementation of the BLAKE3 compression function.
 /// </summary>
-internal static class Blake3ManagedCore
+internal static partial class Blake3ManagedCore
 {
     internal const int OutputLength = 32;
     internal const int KeyLength = 32;
@@ -780,17 +780,25 @@ internal static class Blake3ManagedCore
         }
 
         var counterHigh = new Vector<uint>(lanes);
+        var useAvx2Transpose = degree == 8 && Avx2.IsSupported;
         for (var block = 0; block < ChunkLength / BlockLength; block++)
         {
             var wordOffset = block * 16;
-            for (var word = 0; word < 16; word++)
+            if (useAvx2Transpose)
             {
-                for (var lane = 0; lane < degree; lane++)
+                LoadAndTranspose8(inputWords, wordOffset, message);
+            }
+            else
+            {
+                for (var word = 0; word < 16; word++)
                 {
-                    lanes[lane] = inputWords[wordOffset + word + (lane * 256)];
-                }
+                    for (var lane = 0; lane < degree; lane++)
+                    {
+                        lanes[lane] = inputWords[wordOffset + word + (lane * 256)];
+                    }
 
-                message[word] = new Vector<uint>(lanes);
+                    message[word] = new Vector<uint>(lanes);
+                }
             }
 
             var blockFlags = flags;
@@ -807,17 +815,24 @@ internal static class Blake3ManagedCore
             CompressVector(chainingValues, message, counterLow, counterHigh, new Vector<uint>(blockFlags));
         }
 
-        Span<uint> transposedOutput = stackalloc uint[8 * Vector<uint>.Count];
-        for (var word = 0; word < 8; word++)
+        if (useAvx2Transpose)
         {
-            chainingValues[word].CopyTo(transposedOutput.Slice(word * degree, degree));
+            StoreTransposed8(chainingValues, output);
         }
-
-        for (var lane = 0; lane < degree; lane++)
+        else
         {
+            Span<uint> transposedOutput = stackalloc uint[8 * Vector<uint>.Count];
             for (var word = 0; word < 8; word++)
             {
-                output[(lane * 8) + word] = transposedOutput[(word * degree) + lane];
+                chainingValues[word].CopyTo(transposedOutput.Slice(word * degree, degree));
+            }
+
+            for (var lane = 0; lane < degree; lane++)
+            {
+                for (var word = 0; word < 8; word++)
+                {
+                    output[(lane * 8) + word] = transposedOutput[(word * degree) + lane];
+                }
             }
         }
 
