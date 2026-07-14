@@ -74,13 +74,18 @@ namespace Blake3.Benchmarks
         {
             var config = ManualConfig.Create(DefaultConfig.Instance)
                 .AddJob(Job.ShortRun) // 3 warmup + 3 iterations, fast feedback loop for AI iteration
-                .AddDiagnoser(MemoryDiagnoser.Default)
-                .AddDiagnoser(new DisassemblyDiagnoser(new DisassemblyDiagnoserConfig(
-                    maxDepth: 3,
-                    printSource: true,
-                    exportGithubMarkdown: true,
-                    exportCombinedDisassemblyReport: true)))
-                .AddExporter(JsonExporter.Full);
+                .AddDiagnoser(MemoryDiagnoser.Default);
+
+            if (OperatingSystem.IsWindows())
+            {
+                config = config
+                    .AddDiagnoser(new DisassemblyDiagnoser(new DisassemblyDiagnoserConfig(
+                        maxDepth: 3,
+                        printSource: true,
+                        exportGithubMarkdown: true,
+                        exportCombinedDisassemblyReport: true)))
+                    .AddExporter(JsonExporter.Full);
+            }
 
             BenchmarkRunner.Run<Program>(config, args);
         }
