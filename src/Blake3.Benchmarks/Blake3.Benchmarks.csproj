@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="Blake3.Managed" />
     <PackageReference Include="SauceControl.Blake2Fast" />
   </ItemGroup>
 

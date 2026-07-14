@@ -9,7 +9,8 @@ using Blake2Fast;
 using CommandLine;
 using System;
 using System.Runtime.InteropServices;
-using ManagedHasher = ManagedBlake3::Blake3.Hasher;
+using SharpHasher = ManagedBlake3::Blake3.Hasher;
+using ManagedHasher = Blake3.Managed.Hasher;
 
 namespace Blake3.Benchmarks
 {
@@ -42,18 +43,24 @@ namespace Blake3.Benchmarks
             return MemoryMarshal.Cast<byte, uint>(hasher.Finalize().AsSpan())[0];
         }
 
+        [Benchmark(Description = "Blake3 sharp")]
+        public uint RunBlake3Sharp()
+        {
+            return MemoryMarshal.Cast<byte, uint>(SharpHasher.Hash(_data).AsSpan())[0];
+        }
+
+        [Benchmark(Description = "Blake3 sharp parallel")]
+        public uint RunBlake3SharpParallel()
+        {
+            using var hasher = SharpHasher.New();
+            hasher.UpdateWithJoin(_data);
+            return MemoryMarshal.Cast<byte, uint>(hasher.Finalize().AsSpan())[0];
+        }
+        
         [Benchmark(Description = "Blake3 managed")]
         public uint RunBlake3Managed()
         {
             return MemoryMarshal.Cast<byte, uint>(ManagedHasher.Hash(_data).AsSpan())[0];
-        }
-
-        [Benchmark(Description = "Blake3 managed parallel")]
-        public uint RunBlake3ManagedParallel()
-        {
-            using var hasher = ManagedHasher.New();
-            hasher.UpdateWithJoin(_data);
-            return MemoryMarshal.Cast<byte, uint>(hasher.Finalize().AsSpan())[0];
         }
 
         [Benchmark(Description = "Blake2Fast")]
