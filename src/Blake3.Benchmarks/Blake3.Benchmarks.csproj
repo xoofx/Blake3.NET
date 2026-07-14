@@ -20,7 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Blake3\Blake3.csproj" />
-    <ProjectReference Include="..\Blake3.Managed\Blake3.Managed.csproj" Aliases="ManagedBlake3" />
+    <ProjectReference Include="..\Blake3.Sharp\Blake3.Sharp.csproj" Aliases="ManagedBlake3" />
   </ItemGroup>
 
 </Project>

@@ -6,7 +6,7 @@ These benchmarks use [BenchmarkDotNet](https://github.com/dotnet/BenchmarkDotNet
 to compare several input sizes and implementations:
 
 - `Blake3`, which calls the SIMD-optimized Rust implementation through native interop.
-- `Blake3.Managed`, a portable .NET implementation with runtime-selected SIMD acceleration and no
+- `Blake3.Sharp`, a portable .NET implementation with runtime-selected SIMD acceleration and no
   native code dependency.
 - [Blake2Fast](https://github.com/saucecontrol/Blake2Fast).
 - `System.Security.Cryptography.SHA256`.
@@ -15,7 +15,7 @@ Both BLAKE3 packages are measured in serial mode and in parallel mode using `Has
 
 > **Highlights**
 >
-> - `Blake3.Managed` is competitive with the native Rust implementation: across these x64 and ARM64 serial results,
+> - `Blake3.Sharp` is competitive with the native Rust implementation: across these x64 and ARM64 serial results,
 >   it ranges from about **7% faster to 30% slower**. It is a compelling option when portability
 >   and avoiding native binaries matter more than always getting the highest possible throughput.
 > - Parallel hashing has scheduling and coordination overhead, so serial hashing is preferable for

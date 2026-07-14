@@ -10,7 +10,7 @@
     <File Path="global.json" />
   </Folder>
   <Project Path="Blake3.Benchmarks/Blake3.Benchmarks.csproj" />
-  <Project Path="Blake3.Managed/Blake3.Managed.csproj" />
+  <Project Path="Blake3.Sharp/Blake3.Sharp.csproj" />
   <Project Path="Blake3.Tests/Blake3.Tests.csproj" />
   <Project Path="Blake3/Blake3.csproj" />
 </Solution>

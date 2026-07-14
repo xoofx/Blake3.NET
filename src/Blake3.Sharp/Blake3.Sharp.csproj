@@ -4,10 +4,10 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <AssemblyName>Blake3.Managed</AssemblyName>
+    <AssemblyName>Blake3.Sharp</AssemblyName>
     <RootNamespace>Blake3</RootNamespace>
-    <PackageId>Blake3.Managed</PackageId>
-    <Description>Blake3.Managed is a fully managed SIMD implementation of the BLAKE3 cryptographic hash function.</Description>
+    <PackageId>Blake3.Sharp</PackageId>
+    <Description>Blake3.Sharp is a fully managed SIMD implementation of the BLAKE3 cryptographic hash function.</Description>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
