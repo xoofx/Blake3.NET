@@ -349,21 +349,33 @@ internal static class Blake3ManagedCore
     {
         Span<uint> chainingValue = stackalloc uint[8];
         Span<uint> blockWords = stackalloc uint[16];
-        Span<uint> compressionOutput = stackalloc uint[16];
         keyWords.CopyTo(chainingValue);
         var blocksCompressed = 0;
 
         while (input.Length > BlockLength)
         {
-            BytesToWords(input[..BlockLength], blockWords);
             var blockFlags = flags;
             if (blocksCompressed == 0)
             {
                 blockFlags |= ChunkStart;
             }
 
-            Compress(chainingValue, blockWords, chunkCounter, BlockLength, blockFlags, compressionOutput);
-            compressionOutput[..8].CopyTo(chainingValue);
+            if (Sse41.IsSupported)
+            {
+                Compress(
+                    chainingValue,
+                    System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(input[..BlockLength]),
+                    chunkCounter,
+                    BlockLength,
+                    blockFlags,
+                    chainingValue);
+            }
+            else
+            {
+                BytesToWords(input[..BlockLength], blockWords);
+                Compress(chainingValue, blockWords, chunkCounter, BlockLength, blockFlags, chainingValue);
+            }
+
             blocksCompressed++;
             input = input[BlockLength..];
         }
@@ -378,8 +390,7 @@ internal static class Blake3ManagedCore
             finalFlags |= ChunkStart;
         }
 
-        Compress(chainingValue, blockWords, chunkCounter, (uint)input.Length, finalFlags, compressionOutput);
-        compressionOutput[..8].CopyTo(output);
+        Compress(chainingValue, blockWords, chunkCounter, (uint)input.Length, finalFlags, output);
     }
 
     [SkipLocalsInit]
