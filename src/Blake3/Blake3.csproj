@@ -3,7 +3,7 @@
   <Import Project="Blake3.props" />
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Description>Blake3 is a fully managed SIMD implementation of the BLAKE3 cryptographic hash function.</Description>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);CS1591</NoWarn>

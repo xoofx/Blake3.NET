@@ -17,7 +17,7 @@ Blake3.NET provides two fast, SIMD-accelerated implementations of the
 
 ## Features
 
-- Compatible with .NET 10.
+- Compatible with .NET 8+.
 - `Span`-friendly API with either a fully managed or native implementation.
 - API similar to the [Blake3 Rust API](https://docs.rs/blake3/1.4.1/blake3/).
 - CPU SIMD Hardware accelerated with dynamic CPU feature detection.
