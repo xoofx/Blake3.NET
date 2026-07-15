@@ -77,6 +77,7 @@ internal static partial class Blake3ManagedCore
         Vector256.Create(RotateRight16Mask128, RotateRight16Mask128);
 
     [SkipLocalsInit]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void Compress(
         ReadOnlySpan<uint> chainingValue,
         ReadOnlySpan<uint> blockWords,
@@ -85,7 +86,25 @@ internal static partial class Blake3ManagedCore
         uint flags,
         Span<uint> output)
     {
-        if (Vector128.IsHardwareAccelerated)
+        if (AdvSimd.Arm64.IsSupported)
+        {
+            CompressScalarArm64(chainingValue, blockWords, counter, blockLength, flags, output);
+        }
+        else if (Sse41.IsSupported)
+        {
+            ref var chainingValueWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(chainingValue);
+            ref var blockWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(blockWords);
+            ref var outputWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(output);
+            CompressSse41(
+                ref chainingValueWord,
+                ref blockWord,
+                counter,
+                blockLength,
+                flags,
+                ref outputWord,
+                output.Length);
+        }
+        else if (Vector128.IsHardwareAccelerated)
         {
             CompressVector128(chainingValue, blockWords, counter, blockLength, flags, output);
         }
@@ -106,11 +125,10 @@ internal static partial class Blake3ManagedCore
         Span<uint> chainingValue = stackalloc uint[8];
         Span<uint> blockWords = stackalloc uint[16];
         InitializationVector.CopyTo(chainingValue);
-        var blocksCompressed = 0;
+        var blockFlags = ChunkStart;
 
         while (input.Length > BlockLength)
         {
-            var blockFlags = blocksCompressed == 0 ? ChunkStart : 0;
             if (BitConverter.IsLittleEndian)
             {
                 // Complete little-endian blocks can be loaded directly without staging words.
@@ -128,7 +146,7 @@ internal static partial class Blake3ManagedCore
                 Compress(chainingValue, blockWords, 0, BlockLength, blockFlags, chainingValue);
             }
 
-            blocksCompressed++;
+            blockFlags = 0;
             input = input[BlockLength..];
         }
 
@@ -144,11 +162,7 @@ internal static partial class Blake3ManagedCore
             input.CopyTo(finalBlock);
             BytesToWords(finalBlock, blockWords);
         }
-        var flags = ChunkEnd | Root;
-        if (blocksCompressed == 0)
-        {
-            flags |= ChunkStart;
-        }
+        var flags = ChunkEnd | Root | blockFlags;
 
         if (output.Length == OutputLength)
         {
@@ -454,18 +468,6 @@ internal static partial class Blake3ManagedCore
         uint flags,
         Span<uint> output)
     {
-        if (AdvSimd.Arm64.IsSupported)
-        {
-            CompressScalarArm64(chainingValue, blockWords, counter, blockLength, flags, output);
-            return;
-        }
-
-        if (Sse41.IsSupported)
-        {
-            CompressSse41(chainingValue, blockWords, counter, blockLength, flags, output);
-            return;
-        }
-
         var row0 = Vector128.Create(chainingValue[0], chainingValue[1], chainingValue[2], chainingValue[3]);
         var row1 = Vector128.Create(chainingValue[4], chainingValue[5], chainingValue[6], chainingValue[7]);
         var row2 = Vector128.Create(0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au);
@@ -507,15 +509,14 @@ internal static partial class Blake3ManagedCore
 
     [SkipLocalsInit]
     private static void CompressSse41(
-        ReadOnlySpan<uint> chainingValue,
-        ReadOnlySpan<uint> blockWords,
+        ref uint chainingValueWord,
+        ref uint blockWord,
         ulong counter,
         uint blockLength,
         uint flags,
-        Span<uint> output)
+        ref uint outputWord,
+        int outputLength)
     {
-        ref var chainingValueWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(chainingValue);
-        ref var blockWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(blockWords);
         var initialRow0 = Vector128.LoadUnsafe(ref chainingValueWord);
         var initialRow1 = Vector128.LoadUnsafe(ref chainingValueWord, 4);
         var row0 = initialRow0;
@@ -544,23 +545,24 @@ internal static partial class Blake3ManagedCore
         message2 = permuted2;
         message3 = permuted3;
 
-        for (var round = 1; round < 7; round++)
-        {
-            PermuteMessageAndRoundSse41(
-                ref row0,
-                ref row1,
-                ref row2,
-                ref row3,
-                ref message0,
-                ref message1,
-                ref message2,
-                ref message3);
-        }
+        // Keep the fixed round count explicit. This matches the reference implementation and lets
+        // the JIT schedule across round boundaries without a loop branch in every compression.
+        PermuteMessageAndRoundSse41(ref row0, ref row1, ref row2, ref row3,
+            ref message0, ref message1, ref message2, ref message3);
+        PermuteMessageAndRoundSse41(ref row0, ref row1, ref row2, ref row3,
+            ref message0, ref message1, ref message2, ref message3);
+        PermuteMessageAndRoundSse41(ref row0, ref row1, ref row2, ref row3,
+            ref message0, ref message1, ref message2, ref message3);
+        PermuteMessageAndRoundSse41(ref row0, ref row1, ref row2, ref row3,
+            ref message0, ref message1, ref message2, ref message3);
+        PermuteMessageAndRoundSse41(ref row0, ref row1, ref row2, ref row3,
+            ref message0, ref message1, ref message2, ref message3);
+        PermuteMessageAndRoundSse41(ref row0, ref row1, ref row2, ref row3,
+            ref message0, ref message1, ref message2, ref message3);
 
-        ref var outputWord = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(output);
         (row0 ^ row2).StoreUnsafe(ref outputWord);
         (row1 ^ row3).StoreUnsafe(ref outputWord, 4);
-        if (output.Length >= 16)
+        if (outputLength >= 16)
         {
             (row2 ^ initialRow0).StoreUnsafe(ref outputWord, 8);
             (row3 ^ initialRow1).StoreUnsafe(ref outputWord, 12);
@@ -798,6 +800,21 @@ internal static partial class Blake3ManagedCore
             return Hash4ChunksArm64(input, keyWords, chunkCounter, flags, output);
         }
 
+        if (degree == 4 && Sse2.IsSupported)
+        {
+            return TryHashMany4X86(input, keyWords, chunkCounter, flags, output);
+        }
+
+        if (degree == 8 && Avx2.IsSupported)
+        {
+            return Hash8ChunksAvx2(input, keyWords, chunkCounter, flags, output);
+        }
+
+        if (degree == 8 && Sse2.IsSupported)
+        {
+            return TryHashMany8X86(input, keyWords, chunkCounter, flags, output);
+        }
+
         var inputWords = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(input[..(degree * ChunkLength)]);
         Span<Vector<uint>> chainingValues = stackalloc Vector<uint>[8];
         Span<Vector<uint>> message = stackalloc Vector<uint>[16];
@@ -821,25 +838,17 @@ internal static partial class Blake3ManagedCore
         }
 
         var counterHigh = new Vector<uint>(lanes);
-        var useAvx2Transpose = degree == 8 && Avx2.IsSupported;
         for (var block = 0; block < ChunkLength / BlockLength; block++)
         {
             var wordOffset = block * 16;
-            if (useAvx2Transpose)
+            for (var word = 0; word < 16; word++)
             {
-                LoadAndTranspose8(inputWords, wordOffset, message);
-            }
-            else
-            {
-                for (var word = 0; word < 16; word++)
+                for (var lane = 0; lane < degree; lane++)
                 {
-                    for (var lane = 0; lane < degree; lane++)
-                    {
-                        lanes[lane] = inputWords[wordOffset + word + (lane * 256)];
-                    }
-
-                    message[word] = new Vector<uint>(lanes);
+                    lanes[lane] = inputWords[wordOffset + word + (lane * 256)];
                 }
+
+                message[word] = new Vector<uint>(lanes);
             }
 
             var blockFlags = flags;
@@ -856,24 +865,17 @@ internal static partial class Blake3ManagedCore
             CompressVector(chainingValues, message, counterLow, counterHigh, new Vector<uint>(blockFlags));
         }
 
-        if (useAvx2Transpose)
+        Span<uint> transposedOutput = stackalloc uint[8 * Vector<uint>.Count];
+        for (var word = 0; word < 8; word++)
         {
-            StoreTransposed8(chainingValues, output);
+            chainingValues[word].CopyTo(transposedOutput.Slice(word * degree, degree));
         }
-        else
+
+        for (var lane = 0; lane < degree; lane++)
         {
-            Span<uint> transposedOutput = stackalloc uint[8 * Vector<uint>.Count];
             for (var word = 0; word < 8; word++)
             {
-                chainingValues[word].CopyTo(transposedOutput.Slice(word * degree, degree));
-            }
-
-            for (var lane = 0; lane < degree; lane++)
-            {
-                for (var word = 0; word < 8; word++)
-                {
-                    output[(lane * 8) + word] = transposedOutput[(word * degree) + lane];
-                }
+                output[(lane * 8) + word] = transposedOutput[(word * degree) + lane];
             }
         }
 
@@ -1324,16 +1326,26 @@ internal static partial class Blake3ManagedCore
         var parentCount = childCount / 2;
         if (parentCount < 9 || !TryCompress16Parents(childChainingValues, parentCount, keyWords, flags))
         {
-            if (parentCount >= 2 &&
-                Vector.IsHardwareAccelerated &&
-                Vector<uint>.Count is 4 or 8 &&
-                parentCount <= Vector<uint>.Count)
+            var parentsCompressed = parentCount >= 2 &&
+                                    TryCompress8Parents(childChainingValues, parentCount, keyWords, flags);
+            if (!parentsCompressed)
             {
-                CompressParentsVector(childChainingValues, parentCount, keyWords, flags);
+                parentsCompressed = TryCompressParentsX86(childChainingValues, parentCount, keyWords, flags);
             }
-            else
+
+            if (!parentsCompressed)
             {
-                CompressParentsScalar(childChainingValues, parentCount, keyWords, flags);
+                if (parentCount >= 2 &&
+                    Vector.IsHardwareAccelerated &&
+                    Vector<uint>.Count is 4 or 8 &&
+                    parentCount <= Vector<uint>.Count)
+                {
+                    CompressParentsVector(childChainingValues, parentCount, keyWords, flags);
+                }
+                else
+                {
+                    CompressParentsScalar(childChainingValues, parentCount, keyWords, flags);
+                }
             }
         }
 
