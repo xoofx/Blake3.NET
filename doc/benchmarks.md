@@ -288,6 +288,51 @@ Job=ShortRun  IterationCount=3  LaunchCount=1 WarmupCount=3
 | 'Blake3 default' | 10000000 | 907,587.73 ns | 45,363.456 ns | 2,486.524 ns |  1.00 |   8,441 B |         - |          NA |
 | 'Blake3 native'  | 10000000 | 756,075.81 ns | 41,412.564 ns | 2,269.962 ns |  0.83 |     360 B |         - |          NA |
 
+```
+BenchmarkDotNet v0.15.8, macOS Tahoe 26.5.1 (25F80) [Darwin 25.5.0]
+Apple M4 Pro, 1 CPU, 14 logical and 14 physical cores
+.NET SDK 10.0.201
+  [Host]   : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+  ShortRun : .NET 10.0.5 (10.0.5, 10.0.526.15411), Arm64 RyuJIT armv8.0-a
+
+Job=ShortRun  IterationCount=3  LaunchCount=1 WarmupCount=3
+```
+
+| Method           | N        | Mean            | Error          | StdDev        | Ratio | Allocated | Alloc Ratio |
+|----------------- |--------- |----------------:|---------------:|--------------:|------:|----------:|------------:|
+| 'Blake3 default' | 4        |        49.87 ns |       1.231 ns |      0.067 ns |  1.00 |         - |          NA |
+| 'Blake3 native'  | 4        |        52.63 ns |       1.330 ns |      0.073 ns |  1.06 |         - |          NA |
+|                  |          |                 |                |               |       |           |             |
+| 'Blake3 default' | 100      |       102.62 ns |       3.250 ns |      0.178 ns |  1.00 |         - |          NA |
+| 'Blake3 native'  | 100      |        91.25 ns |       2.549 ns |      0.140 ns |  0.89 |         - |          NA |
+|                  |          |                 |                |               |       |           |             |
+| 'Blake3 default' | 1000     |       836.55 ns |      20.618 ns |      1.130 ns |  1.00 |         - |          NA |
+| 'Blake3 native'  | 1000     |       700.29 ns |      22.154 ns |      1.214 ns |  0.84 |         - |          NA |
+|                  |          |                 |                |               |       |           |             |
+| 'Blake3 default' | 10000    |     5,218.23 ns |     110.609 ns |      6.063 ns |  1.00 |         - |          NA |
+| 'Blake3 native'  | 10000    |     4,514.60 ns |      38.689 ns |      2.121 ns |  0.87 |         - |          NA |
+|                  |          |                 |                |               |       |           |             |
+| 'Blake3 default' | 65536    |    28,487.52 ns |     821.890 ns |     45.051 ns |  1.00 |         - |          NA |
+| 'Blake3 native'  | 65536    |    25,077.70 ns |     136.511 ns |      7.483 ns |  0.88 |         - |          NA |
+|                  |          |                 |                |               |       |           |             |
+| 'Blake3 default' | 100000   |    44,171.43 ns |   1,142.003 ns |     62.597 ns |  1.00 |         - |          NA |
+| 'Blake3 native'  | 100000   |    38,953.93 ns |     189.971 ns |     10.413 ns |  0.88 |         - |          NA |
+|                  |          |                 |                |               |       |           |             |
+| 'Blake3 default' | 131072   |    57,069.08 ns |   2,428.221 ns |    133.099 ns |  1.00 |         - |          NA |
+| 'Blake3 native'  | 131072   |    50,187.54 ns |     441.632 ns |     24.207 ns |  0.88 |         - |          NA |
+|                  |          |                 |                |               |       |           |             |
+| 'Blake3 default' | 262144   |   114,543.10 ns |   7,969.881 ns |    436.856 ns |  1.00 |         - |          NA |
+| 'Blake3 native'  | 262144   |   100,528.36 ns |   1,200.951 ns |     65.828 ns |  0.88 |         - |          NA |
+|                  |          |                 |                |               |       |           |             |
+| 'Blake3 default' | 524288   |   228,890.88 ns |   6,392.852 ns |    350.414 ns |  1.00 |         - |          NA |
+| 'Blake3 native'  | 524288   |   201,074.93 ns |   1,575.382 ns |     86.352 ns |  0.88 |         - |          NA |
+|                  |          |                 |                |               |       |           |             |
+| 'Blake3 default' | 1000000  |   440,723.65 ns |   9,942.807 ns |    544.999 ns |  1.00 |         - |          NA |
+| 'Blake3 native'  | 1000000  |   384,006.50 ns |  12,111.836 ns |    663.891 ns |  0.87 |         - |          NA |
+|                  |          |                 |                |               |       |           |             |
+| 'Blake3 default' | 10000000 | 4,428,962.46 ns | 300,739.435 ns | 16,484.543 ns |  1.00 |         - |          NA |
+| 'Blake3 native'  | 10000000 | 3,846,564.83 ns |  25,030.885 ns |  1,372.027 ns |  0.87 |         - |          NA |
+
 
 ## ExternalHashBenchmarks
 

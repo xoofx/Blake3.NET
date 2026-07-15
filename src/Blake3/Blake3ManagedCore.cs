@@ -897,13 +897,17 @@ internal static partial class Blake3ManagedCore
         while (chunkCount > 2)
         {
             var parentCount = chunkCount / 2;
-            if (parentCount <= Vector<uint>.Count)
+            if (parentCount > 4 ||
+                !TryCompress4ParentsArm64(chainingValues, parentCount, keyWords, flags))
             {
-                CompressParentsVector(chainingValues, parentCount, keyWords, flags);
-            }
-            else
-            {
-                CompressParentsScalar(chainingValues, parentCount, keyWords, flags);
+                if (parentCount <= Vector<uint>.Count)
+                {
+                    CompressParentsVector(chainingValues, parentCount, keyWords, flags);
+                }
+                else
+                {
+                    CompressParentsScalar(chainingValues, parentCount, keyWords, flags);
+                }
             }
 
             chunkCount = parentCount;
@@ -1326,8 +1330,16 @@ internal static partial class Blake3ManagedCore
         var parentCount = childCount / 2;
         if (parentCount < 9 || !TryCompress16Parents(childChainingValues, parentCount, keyWords, flags))
         {
-            var parentsCompressed = parentCount >= 2 &&
+            var parentsCompressed = TryCompress4ParentsArm64(
+                childChainingValues,
+                parentCount,
+                keyWords,
+                flags);
+            if (!parentsCompressed)
+            {
+                parentsCompressed = parentCount >= 2 &&
                                     TryCompress8Parents(childChainingValues, parentCount, keyWords, flags);
+            }
             if (!parentsCompressed)
             {
                 parentsCompressed = TryCompressParentsX86(childChainingValues, parentCount, keyWords, flags);

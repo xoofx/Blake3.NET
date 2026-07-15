@@ -212,6 +212,19 @@ internal static partial class Blake3ManagedCore
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void StoreTransposed4(ref Vector128<uint> chainingValue, Span<uint> output, int count)
+    {
+        ref var outputWord = ref MemoryMarshal.GetReference(output);
+        Transpose4(ref chainingValue);
+        Transpose4(ref Unsafe.Add(ref chainingValue, 4));
+        for (nuint lane = 0; lane < (nuint)count; lane++)
+        {
+            Unsafe.Add(ref chainingValue, lane).StoreUnsafe(ref outputWord, lane * 8);
+            Unsafe.Add(ref chainingValue, lane + 4).StoreUnsafe(ref outputWord, (lane * 8) + 4);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void Transpose4(
         ref Vector128<uint> row0,
         ref Vector128<uint> row1,
@@ -226,6 +239,20 @@ internal static partial class Blake3ManagedCore
         row1 = AdvSimd.Arm64.ZipHigh(row01Low.AsUInt64(), row23Low.AsUInt64()).AsUInt32();
         row2 = AdvSimd.Arm64.ZipLow(row01High.AsUInt64(), row23High.AsUInt64()).AsUInt32();
         row3 = AdvSimd.Arm64.ZipHigh(row01High.AsUInt64(), row23High.AsUInt64()).AsUInt32();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Transpose4(ref Vector128<uint> first)
+    {
+        var row0 = first;
+        var row1 = Unsafe.Add(ref first, 1);
+        var row2 = Unsafe.Add(ref first, 2);
+        var row3 = Unsafe.Add(ref first, 3);
+        Transpose4(ref row0, ref row1, ref row2, ref row3);
+        first = row0;
+        Unsafe.Add(ref first, 1) = row1;
+        Unsafe.Add(ref first, 2) = row2;
+        Unsafe.Add(ref first, 3) = row3;
     }
 
     [SkipLocalsInit]
@@ -277,6 +304,55 @@ internal static partial class Blake3ManagedCore
 
         StoreTransposed4(chainingValues, output);
         return Degree;
+    }
+
+    [SkipLocalsInit]
+    private static bool TryCompress4ParentsArm64(
+        Span<uint> childChainingValues,
+        int parentCount,
+        ReadOnlySpan<uint> keyWords,
+        uint flags)
+    {
+        if (!AdvSimd.Arm64.IsSupported || parentCount is < 1 or > 4)
+        {
+            return false;
+        }
+
+        Span<Vector128<uint>> chainingValues = stackalloc Vector128<uint>[8];
+        Span<Vector128<uint>> message = stackalloc Vector128<uint>[16];
+        ref var chainingValue = ref MemoryMarshal.GetReference(chainingValues);
+        ref var messageWord = ref MemoryMarshal.GetReference(message);
+        ref var childWord = ref MemoryMarshal.GetReference(childChainingValues);
+        for (var index = 0; index < 8; index++)
+        {
+            Unsafe.Add(ref chainingValue, index) = Vector128.Create(keyWords[index]);
+        }
+
+        for (nuint parent = (nuint)parentCount; parent < 4; parent++)
+        {
+            Unsafe.Add(ref messageWord, parent) = Vector128<uint>.Zero;
+            Unsafe.Add(ref messageWord, parent + 4) = Vector128<uint>.Zero;
+            Unsafe.Add(ref messageWord, parent + 8) = Vector128<uint>.Zero;
+            Unsafe.Add(ref messageWord, parent + 12) = Vector128<uint>.Zero;
+        }
+
+        for (nuint parent = 0; parent < (nuint)parentCount; parent++)
+        {
+            var childOffset = parent * 16;
+            Unsafe.Add(ref messageWord, parent) = Vector128.LoadUnsafe(ref childWord, childOffset);
+            Unsafe.Add(ref messageWord, parent + 4) = Vector128.LoadUnsafe(ref childWord, childOffset + 4);
+            Unsafe.Add(ref messageWord, parent + 8) = Vector128.LoadUnsafe(ref childWord, childOffset + 8);
+            Unsafe.Add(ref messageWord, parent + 12) = Vector128.LoadUnsafe(ref childWord, childOffset + 12);
+        }
+
+        Transpose4(ref messageWord);
+        Transpose4(ref Unsafe.Add(ref messageWord, 4));
+        Transpose4(ref Unsafe.Add(ref messageWord, 8));
+        Transpose4(ref Unsafe.Add(ref messageWord, 12));
+        var zero = Vector128<uint>.Zero;
+        Compress4Arm64(ref chainingValue, ref messageWord, in zero, in zero, flags | Parent);
+        StoreTransposed4(ref chainingValue, childChainingValues, parentCount);
+        return true;
     }
 
     [SkipLocalsInit]
