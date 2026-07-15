@@ -3,6 +3,7 @@
 // See license.txt file in the project root for full license information.
 
 using System;
+using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -18,16 +19,18 @@ namespace Blake3;
 /// <remarks>
 /// Instances are not thread-safe. Use <see cref="New"/>, <see cref="NewKeyed"/>, or
 /// <see cref="NewDeriveKey(string)"/> to construct an instance.
+/// Dispose instances promptly to clear their state and return internal buffers to the shared pool.
 /// </remarks>
 public sealed class Hasher : IDisposable
 {
+    private const int ChainingValueLength = 8;
     private const int ParallelThresholdBytes = 192 * 1024;
     private const int MinimumParallelBytesPerWorker = 32 * 1024;
 
-    private readonly uint[] _keyWords = new uint[8];
-    private readonly uint[] _chunkChainingValue = new uint[8];
-    private readonly byte[] _block = new byte[Blake3ManagedCore.BlockLength];
-    private readonly uint[] _chainingValueStack = new uint[Blake3ManagedCore.MaximumDepth * 8];
+    private uint[] _keyWords = Array.Empty<uint>();
+    private uint[] _chunkChainingValue = Array.Empty<uint>();
+    private byte[] _block = Array.Empty<byte>();
+    private uint[] _chainingValueStack = Array.Empty<uint>();
     private readonly uint _flags;
 
     private ulong _chunkCounter;
@@ -42,13 +45,28 @@ public sealed class Hasher : IDisposable
     [Obsolete("Use New() to create a new instance of Hasher", true)]
     public Hasher()
     {
+        RentBuffers();
+        KeyWords.Clear();
+        ChunkChainingValue.Clear();
+        Block.Clear();
+        ChainingValueStack.Clear();
     }
 
     private Hasher(ReadOnlySpan<uint> keyWords, uint flags)
     {
-        keyWords.CopyTo(_keyWords);
-        keyWords.CopyTo(_chunkChainingValue);
+        RentBuffers();
+        keyWords.CopyTo(KeyWords);
+        keyWords.CopyTo(ChunkChainingValue);
+        Block.Clear();
         _flags = flags;
+    }
+
+    private void RentBuffers()
+    {
+        _keyWords = ArrayPool<uint>.Shared.Rent(ChainingValueLength);
+        _chunkChainingValue = ArrayPool<uint>.Shared.Rent(ChainingValueLength);
+        _block = ArrayPool<byte>.Shared.Rent(Blake3ManagedCore.BlockLength);
+        _chainingValueStack = ArrayPool<uint>.Shared.Rent(Blake3ManagedCore.MaximumDepth * ChainingValueLength);
     }
 
     /// <summary>
@@ -142,9 +160,9 @@ public sealed class Hasher : IDisposable
     public void Reset()
     {
         ThrowIfDisposed();
-        _keyWords.CopyTo(_chunkChainingValue, 0);
-        CryptographicOperations.ZeroMemory(_block);
-        Array.Clear(_chainingValueStack);
+        KeyWords.CopyTo(ChunkChainingValue);
+        CryptographicOperations.ZeroMemory(Block);
+        ChainingValueStack.Clear();
         _chunkCounter = 0;
         _blockLength = 0;
         _blocksCompressed = 0;
@@ -174,9 +192,9 @@ public sealed class Hasher : IDisposable
             if (ChunkStateLength == 0 &&
                 (_chunkCounter & 15) == 0 &&
                 data.Length > 16 * Blake3ManagedCore.ChunkLength &&
-                Blake3ManagedCore.TryHash16Chunks(data, _keyWords, _chunkCounter, _flags, parallelChainingValues))
+                Blake3ManagedCore.TryHash16Chunks(data, KeyWords, _chunkCounter, _flags, parallelChainingValues))
             {
-                Blake3ManagedCore.ReduceChunkChainingValues(parallelChainingValues, 16, _keyWords, _flags);
+                Blake3ManagedCore.ReduceChunkChainingValues(parallelChainingValues, 16, KeyWords, _flags);
                 _chunkCounter += 16;
                 AddSubtreeChainingValue(parallelChainingValues[..8], _chunkCounter, 4);
                 ResetChunkState(_chunkCounter);
@@ -191,13 +209,13 @@ public sealed class Hasher : IDisposable
             {
                 var degree = Blake3ManagedCore.TryHashVectorChunks(
                     data,
-                    _keyWords,
+                    KeyWords,
                     _chunkCounter,
                     _flags,
                     parallelChainingValues);
                 if (degree > 0)
                 {
-                    Blake3ManagedCore.ReduceChunkChainingValues(parallelChainingValues, degree, _keyWords, _flags);
+                    Blake3ManagedCore.ReduceChunkChainingValues(parallelChainingValues, degree, KeyWords, _flags);
                     _chunkCounter += (ulong)degree;
                     AddSubtreeChainingValue(
                         parallelChainingValues[..8],
@@ -363,8 +381,8 @@ public sealed class Hasher : IDisposable
         for (var stackIndex = _stackLength - 1; stackIndex >= 0; stackIndex--)
         {
             GetOutputChainingValue(outputChainingValue, outputBlockWords, outputCounter, outputBlockLength, outputFlags, rightChainingValue);
-            _keyWords.AsSpan().CopyTo(outputChainingValue);
-            _chainingValueStack.AsSpan(stackIndex * 8, 8).CopyTo(outputBlockWords);
+            KeyWords.CopyTo(outputChainingValue);
+            ChainingValueStack.Slice(stackIndex * ChainingValueLength, ChainingValueLength).CopyTo(outputBlockWords);
             rightChainingValue.CopyTo(outputBlockWords[8..]);
             outputCounter = 0;
             outputBlockLength = Blake3ManagedCore.BlockLength;
@@ -401,12 +419,29 @@ public sealed class Hasher : IDisposable
         CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(_chunkChainingValue.AsSpan()));
         CryptographicOperations.ZeroMemory(_block);
         CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(_chainingValueStack.AsSpan()));
+        ArrayPool<uint>.Shared.Return(_keyWords);
+        ArrayPool<uint>.Shared.Return(_chunkChainingValue);
+        ArrayPool<byte>.Shared.Return(_block);
+        ArrayPool<uint>.Shared.Return(_chainingValueStack);
+        _keyWords = Array.Empty<uint>();
+        _chunkChainingValue = Array.Empty<uint>();
+        _block = Array.Empty<byte>();
+        _chainingValueStack = Array.Empty<uint>();
         _chunkCounter = 0;
         _blockLength = 0;
         _blocksCompressed = 0;
         _stackLength = 0;
         _disposed = true;
     }
+
+    private Span<uint> KeyWords => _keyWords.AsSpan(0, ChainingValueLength);
+
+    private Span<uint> ChunkChainingValue => _chunkChainingValue.AsSpan(0, ChainingValueLength);
+
+    private Span<byte> Block => _block.AsSpan(0, Blake3ManagedCore.BlockLength);
+
+    private Span<uint> ChainingValueStack =>
+        _chainingValueStack.AsSpan(0, Blake3ManagedCore.MaximumDepth * ChainingValueLength);
 
     private int ChunkStateLength => (_blocksCompressed * Blake3ManagedCore.BlockLength) + _blockLength;
 
@@ -443,7 +478,7 @@ public sealed class Hasher : IDisposable
         {
             Blake3ManagedCore.HashChunkGroup(
                 data.Slice(chunk * Blake3ManagedCore.ChunkLength, Blake3ManagedCore.ChunkLength),
-                _keyWords,
+                KeyWords,
                 _chunkCounter,
                 _flags,
                 1,
@@ -486,7 +521,7 @@ public sealed class Hasher : IDisposable
                         groupByteLength);
                     Blake3ManagedCore.HashChunkGroup(
                         groupInput,
-                        keyWords,
+                        keyWords.AsSpan(0, ChainingValueLength),
                         startingChunkCounter + ((ulong)group * (ulong)chunkDegree),
                         flags,
                         chunkDegree,
@@ -505,22 +540,22 @@ public sealed class Hasher : IDisposable
         {
             if (_blockLength == Blake3ManagedCore.BlockLength)
             {
-                Blake3ManagedCore.BytesToWords(_block, blockWords);
+                Blake3ManagedCore.BytesToWords(Block, blockWords);
                 Blake3ManagedCore.Compress(
-                    _chunkChainingValue,
+                    ChunkChainingValue,
                     blockWords,
                     _chunkCounter,
                     Blake3ManagedCore.BlockLength,
                     _flags | ChunkStartFlag,
                     compressionOutput);
-                compressionOutput[..8].CopyTo(_chunkChainingValue);
+                compressionOutput[..ChainingValueLength].CopyTo(ChunkChainingValue);
                 _blocksCompressed++;
                 _blockLength = 0;
-                CryptographicOperations.ZeroMemory(_block);
+                CryptographicOperations.ZeroMemory(Block);
             }
 
             var take = Math.Min(Blake3ManagedCore.BlockLength - _blockLength, data.Length);
-            data[..take].CopyTo(_block.AsSpan(_blockLength));
+            data[..take].CopyTo(Block[_blockLength..]);
             _blockLength += take;
             data = data[take..];
         }
@@ -533,8 +568,8 @@ public sealed class Hasher : IDisposable
         out uint blockLength,
         out uint flags)
     {
-        _chunkChainingValue.AsSpan().CopyTo(chainingValue);
-        Blake3ManagedCore.BytesToWords(_block, blockWords);
+        ChunkChainingValue.CopyTo(chainingValue);
+        Blake3ManagedCore.BytesToWords(Block, blockWords);
         counter = _chunkCounter;
         blockLength = (uint)_blockLength;
         flags = _flags | ChunkStartFlag | Blake3ManagedCore.ChunkEnd;
@@ -571,10 +606,10 @@ public sealed class Hasher : IDisposable
         while ((totalChunks & 1) == 0)
         {
             _stackLength--;
-            _chainingValueStack.AsSpan(_stackLength * 8, 8).CopyTo(parentBlock);
+            ChainingValueStack.Slice(_stackLength * ChainingValueLength, ChainingValueLength).CopyTo(parentBlock);
             newChainingValue.CopyTo(parentBlock[8..]);
             Blake3ManagedCore.Compress(
-                _keyWords,
+                KeyWords,
                 parentBlock,
                 0,
                 Blake3ManagedCore.BlockLength,
@@ -584,7 +619,7 @@ public sealed class Hasher : IDisposable
             totalChunks >>= 1;
         }
 
-        newChainingValue.CopyTo(_chainingValueStack.AsSpan(_stackLength * 8, 8));
+        newChainingValue.CopyTo(ChainingValueStack.Slice(_stackLength * ChainingValueLength, ChainingValueLength));
         _stackLength++;
     }
 
@@ -599,10 +634,10 @@ public sealed class Hasher : IDisposable
         while ((totalChunks & 1) == 0)
         {
             _stackLength--;
-            _chainingValueStack.AsSpan(_stackLength * 8, 8).CopyTo(parentBlock);
+            ChainingValueStack.Slice(_stackLength * ChainingValueLength, ChainingValueLength).CopyTo(parentBlock);
             newChainingValue.CopyTo(parentBlock[8..]);
             Blake3ManagedCore.Compress(
-                _keyWords,
+                KeyWords,
                 parentBlock,
                 0,
                 Blake3ManagedCore.BlockLength,
@@ -612,14 +647,14 @@ public sealed class Hasher : IDisposable
             totalChunks >>= 1;
         }
 
-        newChainingValue.CopyTo(_chainingValueStack.AsSpan(_stackLength * 8, 8));
+        newChainingValue.CopyTo(ChainingValueStack.Slice(_stackLength * ChainingValueLength, ChainingValueLength));
         _stackLength++;
     }
 
     private void ResetChunkState(ulong chunkCounter)
     {
-        _keyWords.CopyTo(_chunkChainingValue, 0);
-        CryptographicOperations.ZeroMemory(_block);
+        KeyWords.CopyTo(ChunkChainingValue);
+        CryptographicOperations.ZeroMemory(Block);
         _chunkCounter = chunkCounter;
         _blockLength = 0;
         _blocksCompressed = 0;

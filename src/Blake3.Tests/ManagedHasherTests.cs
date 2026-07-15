@@ -398,6 +398,26 @@ public class ManagedHasherTests
     }
 
     [Test]
+    public void CreatingHasherDoesNotAllocateInternalBuffers()
+    {
+        const int iterationCount = 128;
+        using (var warmup = ManagedHasher.New())
+        {
+        }
+
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        for (var iteration = 0; iteration < iterationCount; iteration++)
+        {
+            using var hasher = ManagedHasher.New();
+        }
+
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // The Hasher reference itself is allocated, but its internal buffers should be pooled.
+        Assert.That(allocatedBytes, Is.LessThan(256L * iterationCount));
+    }
+
+    [Test]
     public void DisposedHasherRejectsOperations()
     {
         var hasher = ManagedHasher.New();
