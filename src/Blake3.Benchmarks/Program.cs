@@ -1,83 +1,15 @@
-extern alias NativeBlake3;
-using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Exporters.Json;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
-using Blake2Fast;
-using CommandLine;
 using System;
-using System.Runtime.InteropServices;
-using NativeHasher = NativeBlake3::Blake3.Hasher;
-using ManagedHasher = Blake3.Managed.Hasher;
 
 namespace Blake3.Benchmarks
 {
-    [RPlotExporter]
-    public class Program
+    public static class Program
     {
-        private byte[] _data;
-
-        [Params(4, 100, 1000, 10000, 65536, 100000, 131072, 262144, 524288, 1000000, 10000000)]
-        public int N;
-
-        [GlobalSetup]
-        public void Setup()
-        {
-            _data = new byte[N];
-            new Random(42).NextBytes(_data);
-        }
-
-        [Benchmark(Baseline = true, Description = "Blake3 default")]
-        public uint RunBlake3()
-        {
-            return MemoryMarshal.Cast<byte, uint>(Hasher.Hash(_data).AsSpan())[0];
-        }
-
-        [Benchmark(Description = "Blake3 parallel")]
-        public uint RunBlake3Parallel()
-        {
-            using var hasher = Hasher.New();
-            hasher.UpdateWithJoin(_data);
-            return MemoryMarshal.Cast<byte, uint>(hasher.Finalize().AsSpan())[0];
-        }
-
-        [Benchmark(Description = "Blake3 native")]
-        public uint RunBlake3Native()
-        {
-            return MemoryMarshal.Cast<byte, uint>(NativeHasher.Hash(_data).AsSpan())[0];
-        }
-
-        [Benchmark(Description = "Blake3 native parallel")]
-        public uint RunBlake3NativeParallel()
-        {
-            using var hasher = NativeHasher.New();
-            hasher.UpdateWithJoin(_data);
-            return MemoryMarshal.Cast<byte, uint>(hasher.Finalize().AsSpan())[0];
-        }
-        
-        [Benchmark(Description = "Blake3 managed (ext)")]
-        public uint RunBlake3Managed()
-        {
-            return MemoryMarshal.Cast<byte, uint>(ManagedHasher.Hash(_data).AsSpan())[0];
-        }
-
-        [Benchmark(Description = "Blake2Fast")]
-        public uint RunBlake2Fast()
-        {
-            return MemoryMarshal.Cast<byte, uint>(Blake2b.ComputeHash(_data))[0];
-        }
-
-        [Benchmark(Description = "SHA256")]
-        public unsafe uint RunSHA256()
-        {
-            Span<byte> data = stackalloc byte[32];
-            System.Security.Cryptography.SHA256.HashData(_data.AsSpan(), data);
-            return MemoryMarshal.Cast<byte, uint>(data)[0];
-        }
-
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
             var config = ManualConfig.Create(DefaultConfig.Instance)
                 .AddJob(Job.ShortRun) // 3 warmup + 3 iterations, fast feedback loop for AI iteration
@@ -94,7 +26,9 @@ namespace Blake3.Benchmarks
                     .AddExporter(JsonExporter.Full);
             }
 
-            BenchmarkRunner.Run<Program>(config, args);
+            BenchmarkSwitcher
+                .FromAssembly(typeof(Program).Assembly)
+                .Run(args, config);
         }
     }
 }
