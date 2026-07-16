@@ -319,11 +319,15 @@ internal static partial class Blake3ManagedCore
         int messageY)
     {
         a = a + b + Unsafe.Add(ref message, messageX);
-        d = RotateRight16(d ^ a);
+        d ^= a;
+        // Shift-based rotates avoid keeping shuffle masks live across the fully unrolled rounds,
+        // which substantially reduces register spills in the x64 JIT's four-way kernel.
+        d = Sse2.Or(Sse2.ShiftRightLogical(d, 16), Sse2.ShiftLeftLogical(d, 16));
         c += d;
         b = RotateRight12(b ^ c);
         a = a + b + Unsafe.Add(ref message, messageY);
-        d = RotateRight8(d ^ a);
+        d ^= a;
+        d = Sse2.Or(Sse2.ShiftRightLogical(d, 8), Sse2.ShiftLeftLogical(d, 24));
         c += d;
         b = RotateRight7(b ^ c);
     }
