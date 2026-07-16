@@ -118,16 +118,19 @@ Starting with version 3.0, the `Blake3` package delivers near-native BLAKE3 perf
 shipping or loading a native library. Benchmarks on an AMD Ryzen 9 9950X (x64) and an Apple M4 Pro
 (ARM64) show that:
 
-- Serial `Blake3` performance ranges from about **10% faster to 35% slower** than the
+- Serial `Blake3` performance ranges from about **11% faster to 22% slower** than the
   SIMD-optimized native Rust implementation across inputs from 4 bytes to 10 MB.
-- On ARM64 it stays within **4%** of native performance at 4 bytes and is about **15% to 20% slower**
-  from 1 KB to 10 MB; on x64 it is 9% faster at 100 bytes and is **12% to 35% slower** from 1 KB to 10 MB.
-- `Hasher.UpdateWithJoin` substantially improves throughput for large inputs on both architectures,
-  while the serial path avoids parallel scheduling overhead for smaller inputs.
+- On ARM64 it is **5% faster** at 4 bytes and about **13% to 20% slower** from 1 KB to 10 MB; on
+  x64 it is **11% faster** at 100 bytes and about **12% to 22% slower** from 1 KB to 10 MB.
+- At 64 KiB on x64, serial `Blake3` is about **2.4x faster** than the external `Blake3.Managed`
+  package, **3.9x faster** than SHA256, and **9.9x faster** than Blake2Fast in these runs.
+- `Hasher.UpdateWithJoin` substantially improves throughput for multi-megabyte inputs. At 10 MB on
+  x64 it is about **4.4x faster** than serial `Blake3`; the exact parallel crossover depends on the
+  CPU, available cores, runtime, and input shape.
 - The serial `Blake3` and `Blake3.Native` paths perform these benchmarks without managed allocations.
 
 See the [full benchmark methodology and results](doc/benchmarks.md) for the x64 and ARM64
-environments, detailed measurements, and parallel crossover guidance.
+environments, comparisons with other hash implementations, and explicit parallel measurements.
 
 ## How to Build?
 
