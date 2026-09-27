@@ -24,8 +24,10 @@ internal static partial class Blake3ManagedCore
         var inputWords = MemoryMarshal.Cast<byte, uint>(input[..(Degree * ChunkLength)]);
         Span<Vector256<uint>> chainingValues = stackalloc Vector256<uint>[8];
         Span<Vector256<uint>> message = stackalloc Vector256<uint>[16];
+        Span<Vector256<uint>> row3 = Avx512F.VL.IsSupported ? default : stackalloc Vector256<uint>[4];
         ref var chainingValue = ref MemoryMarshal.GetReference(chainingValues);
         ref var messageWord = ref MemoryMarshal.GetReference(message);
+        ref var row3Word = ref MemoryMarshal.GetReference(row3);
         ref var inputWord = ref MemoryMarshal.GetReference(inputWords);
 
         for (var index = 0; index < 8; index++)
@@ -58,7 +60,20 @@ internal static partial class Blake3ManagedCore
                 blockFlags |= ChunkEnd;
             }
 
-            Compress8(ref chainingValue, ref messageWord, in counterLow, in counterHigh, blockFlags);
+            if (Avx512F.VL.IsSupported)
+            {
+                Compress8(ref chainingValue, ref messageWord, in counterLow, in counterHigh, blockFlags);
+            }
+            else
+            {
+                Compress8Avx2(
+                    ref chainingValue,
+                    ref messageWord,
+                    in counterLow,
+                    in counterHigh,
+                    blockFlags,
+                    ref row3Word);
+            }
         }
 
         StoreTransposed8(ref chainingValue, output, Degree);
@@ -79,8 +94,10 @@ internal static partial class Blake3ManagedCore
 
         Span<Vector256<uint>> chainingValues = stackalloc Vector256<uint>[8];
         Span<Vector256<uint>> message = stackalloc Vector256<uint>[16];
+        Span<Vector256<uint>> row3 = Avx512F.VL.IsSupported ? default : stackalloc Vector256<uint>[4];
         ref var chainingValue = ref MemoryMarshal.GetReference(chainingValues);
         ref var messageWord = ref MemoryMarshal.GetReference(message);
+        ref var row3Word = ref MemoryMarshal.GetReference(row3);
         ref var childWord = ref MemoryMarshal.GetReference(childChainingValues);
 
         for (var index = 0; index < 8; index++)
@@ -99,7 +116,15 @@ internal static partial class Blake3ManagedCore
         Transpose8(ref messageWord);
         Transpose8(ref Unsafe.Add(ref messageWord, 8));
         var zero = Vector256<uint>.Zero;
-        Compress8(ref chainingValue, ref messageWord, in zero, in zero, flags | Parent);
+        if (Avx512F.VL.IsSupported)
+        {
+            Compress8(ref chainingValue, ref messageWord, in zero, in zero, flags | Parent);
+        }
+        else
+        {
+            Compress8Avx2(ref chainingValue, ref messageWord, in zero, in zero, flags | Parent, ref row3Word);
+        }
+
         StoreTransposed8(ref chainingValue, childChainingValues, parentCount);
         return true;
     }
@@ -291,6 +316,138 @@ internal static partial class Blake3ManagedCore
         a = a + b + Unsafe.Add(ref message, messageY);
         d = RotateRight8(d ^ a);
         c += d;
+        b = RotateRight7(b ^ c);
+    }
+
+    [SkipLocalsInit]
+    private static void Compress8Avx2(
+        ref Vector256<uint> chainingValue,
+        ref Vector256<uint> message,
+        in Vector256<uint> counterLow,
+        in Vector256<uint> counterHigh,
+        uint flags,
+        ref Vector256<uint> row3)
+    {
+        var v0 = chainingValue;
+        var v1 = Unsafe.Add(ref chainingValue, 1);
+        var v2 = Unsafe.Add(ref chainingValue, 2);
+        var v3 = Unsafe.Add(ref chainingValue, 3);
+        var v4 = Unsafe.Add(ref chainingValue, 4);
+        var v5 = Unsafe.Add(ref chainingValue, 5);
+        var v6 = Unsafe.Add(ref chainingValue, 6);
+        var v7 = Unsafe.Add(ref chainingValue, 7);
+        var v8 = Vector256.Create(0x6A09E667u);
+        var v9 = Vector256.Create(0xBB67AE85u);
+        var v10 = Vector256.Create(0x3C6EF372u);
+        var v11 = Vector256.Create(0xA54FF53Au);
+
+        // AVX2 has 16 ymm registers and the eight-way state alone needs 16 vectors, so keeping all
+        // of it in locals makes the x64 JIT spill heavily. Row 3 (v12..v15) stays in caller-provided
+        // memory instead, leaving rows 0-2 and the temporaries in registers. Callers keep using
+        // Compress8 with AVX-512VL, whose 32 vector registers hold the whole state.
+        ref var v12 = ref row3;
+        ref var v13 = ref Unsafe.Add(ref row3, 1);
+        ref var v14 = ref Unsafe.Add(ref row3, 2);
+        ref var v15 = ref Unsafe.Add(ref row3, 3);
+        v12 = counterLow;
+        v13 = counterHigh;
+        v14 = Vector256.Create((uint)BlockLength);
+        v15 = Vector256.Create(flags);
+
+        Mix8Avx2(ref v0, ref v4, ref v8, ref v12, ref message, 0, 1);
+        Mix8Avx2(ref v1, ref v5, ref v9, ref v13, ref message, 2, 3);
+        Mix8Avx2(ref v2, ref v6, ref v10, ref v14, ref message, 4, 5);
+        Mix8Avx2(ref v3, ref v7, ref v11, ref v15, ref message, 6, 7);
+        Mix8Avx2(ref v0, ref v5, ref v10, ref v15, ref message, 8, 9);
+        Mix8Avx2(ref v1, ref v6, ref v11, ref v12, ref message, 10, 11);
+        Mix8Avx2(ref v2, ref v7, ref v8, ref v13, ref message, 12, 13);
+        Mix8Avx2(ref v3, ref v4, ref v9, ref v14, ref message, 14, 15);
+
+        Mix8Avx2(ref v0, ref v4, ref v8, ref v12, ref message, 2, 6);
+        Mix8Avx2(ref v1, ref v5, ref v9, ref v13, ref message, 3, 10);
+        Mix8Avx2(ref v2, ref v6, ref v10, ref v14, ref message, 7, 0);
+        Mix8Avx2(ref v3, ref v7, ref v11, ref v15, ref message, 4, 13);
+        Mix8Avx2(ref v0, ref v5, ref v10, ref v15, ref message, 1, 11);
+        Mix8Avx2(ref v1, ref v6, ref v11, ref v12, ref message, 12, 5);
+        Mix8Avx2(ref v2, ref v7, ref v8, ref v13, ref message, 9, 14);
+        Mix8Avx2(ref v3, ref v4, ref v9, ref v14, ref message, 15, 8);
+
+        Mix8Avx2(ref v0, ref v4, ref v8, ref v12, ref message, 3, 4);
+        Mix8Avx2(ref v1, ref v5, ref v9, ref v13, ref message, 10, 12);
+        Mix8Avx2(ref v2, ref v6, ref v10, ref v14, ref message, 13, 2);
+        Mix8Avx2(ref v3, ref v7, ref v11, ref v15, ref message, 7, 14);
+        Mix8Avx2(ref v0, ref v5, ref v10, ref v15, ref message, 6, 5);
+        Mix8Avx2(ref v1, ref v6, ref v11, ref v12, ref message, 9, 0);
+        Mix8Avx2(ref v2, ref v7, ref v8, ref v13, ref message, 11, 15);
+        Mix8Avx2(ref v3, ref v4, ref v9, ref v14, ref message, 8, 1);
+
+        Mix8Avx2(ref v0, ref v4, ref v8, ref v12, ref message, 10, 7);
+        Mix8Avx2(ref v1, ref v5, ref v9, ref v13, ref message, 12, 9);
+        Mix8Avx2(ref v2, ref v6, ref v10, ref v14, ref message, 14, 3);
+        Mix8Avx2(ref v3, ref v7, ref v11, ref v15, ref message, 13, 15);
+        Mix8Avx2(ref v0, ref v5, ref v10, ref v15, ref message, 4, 0);
+        Mix8Avx2(ref v1, ref v6, ref v11, ref v12, ref message, 11, 2);
+        Mix8Avx2(ref v2, ref v7, ref v8, ref v13, ref message, 5, 8);
+        Mix8Avx2(ref v3, ref v4, ref v9, ref v14, ref message, 1, 6);
+
+        Mix8Avx2(ref v0, ref v4, ref v8, ref v12, ref message, 12, 13);
+        Mix8Avx2(ref v1, ref v5, ref v9, ref v13, ref message, 9, 11);
+        Mix8Avx2(ref v2, ref v6, ref v10, ref v14, ref message, 15, 10);
+        Mix8Avx2(ref v3, ref v7, ref v11, ref v15, ref message, 14, 8);
+        Mix8Avx2(ref v0, ref v5, ref v10, ref v15, ref message, 7, 2);
+        Mix8Avx2(ref v1, ref v6, ref v11, ref v12, ref message, 5, 3);
+        Mix8Avx2(ref v2, ref v7, ref v8, ref v13, ref message, 0, 1);
+        Mix8Avx2(ref v3, ref v4, ref v9, ref v14, ref message, 6, 4);
+
+        Mix8Avx2(ref v0, ref v4, ref v8, ref v12, ref message, 9, 14);
+        Mix8Avx2(ref v1, ref v5, ref v9, ref v13, ref message, 11, 5);
+        Mix8Avx2(ref v2, ref v6, ref v10, ref v14, ref message, 8, 12);
+        Mix8Avx2(ref v3, ref v7, ref v11, ref v15, ref message, 15, 1);
+        Mix8Avx2(ref v0, ref v5, ref v10, ref v15, ref message, 13, 3);
+        Mix8Avx2(ref v1, ref v6, ref v11, ref v12, ref message, 0, 10);
+        Mix8Avx2(ref v2, ref v7, ref v8, ref v13, ref message, 2, 6);
+        Mix8Avx2(ref v3, ref v4, ref v9, ref v14, ref message, 4, 7);
+
+        Mix8Avx2(ref v0, ref v4, ref v8, ref v12, ref message, 11, 15);
+        Mix8Avx2(ref v1, ref v5, ref v9, ref v13, ref message, 5, 0);
+        Mix8Avx2(ref v2, ref v6, ref v10, ref v14, ref message, 1, 9);
+        Mix8Avx2(ref v3, ref v7, ref v11, ref v15, ref message, 8, 6);
+        Mix8Avx2(ref v0, ref v5, ref v10, ref v15, ref message, 14, 10);
+        Mix8Avx2(ref v1, ref v6, ref v11, ref v12, ref message, 2, 12);
+        Mix8Avx2(ref v2, ref v7, ref v8, ref v13, ref message, 3, 4);
+        Mix8Avx2(ref v3, ref v4, ref v9, ref v14, ref message, 7, 13);
+
+        chainingValue = v0 ^ v8;
+        Unsafe.Add(ref chainingValue, 1) = v1 ^ v9;
+        Unsafe.Add(ref chainingValue, 2) = v2 ^ v10;
+        Unsafe.Add(ref chainingValue, 3) = v3 ^ v11;
+        Unsafe.Add(ref chainingValue, 4) = v4 ^ v12;
+        Unsafe.Add(ref chainingValue, 5) = v5 ^ v13;
+        Unsafe.Add(ref chainingValue, 6) = v6 ^ v14;
+        Unsafe.Add(ref chainingValue, 7) = v7 ^ v15;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Mix8Avx2(
+        ref Vector256<uint> a,
+        ref Vector256<uint> b,
+        ref Vector256<uint> c,
+        ref Vector256<uint> d,
+        ref Vector256<uint> message,
+        int messageX,
+        int messageY)
+    {
+        // d refers to memory here: read it once as an operand and store it once. Rotating by 16 with
+        // word shuffles needs no mask register, which avoids spills with the .NET 8 and 9 JITs.
+        a = a + b + Unsafe.Add(ref message, messageX);
+        var dValue = d ^ a;
+        dValue = Avx2.ShuffleHigh(Avx2.ShuffleLow(dValue.AsUInt16(), 0xB1), 0xB1).AsUInt32();
+        c += dValue;
+        b = RotateRight12(b ^ c);
+        a = a + b + Unsafe.Add(ref message, messageY);
+        dValue = RotateRight8(dValue ^ a);
+        d = dValue;
+        c += dValue;
         b = RotateRight7(b ^ c);
     }
 
